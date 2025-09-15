@@ -33,7 +33,7 @@ const agent = createSmartAgent({
   model,
   tools: [echo],
   limits: { maxToolCalls: 3 },
-  params: { additionalSystemPrompt: "Keep answers crisp." },
+  systemPrompt: { additionalSystemPrompt: "Keep answers crisp." },
 });
 
 const res = await agent.invoke({ messages: [new HumanMessage("say hi via echo")] });

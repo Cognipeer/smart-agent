@@ -1,6 +1,7 @@
 import { AIMessage, BaseMessage } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { ToolInterface } from "@langchain/core/tools";
+import type { SystemPromptParams } from "./prompts.js";
 
 export type Message = BaseMessage;
 
@@ -19,18 +20,13 @@ export type SmartAgentLimits = {
   maxParallelTools?: number;
 };
 
-export type SmartAgentParams = {
-  additionalSystemPrompt?: string;
-  planning?: boolean;
-  // topicDetection and artifacts are intentionally not supported in this package
-};
-
 export type SmartAgentOptions = {
   model: any; // a LangChain LLM or ChatModel with .bindTools
   // Accept any LangChain tool implementation, including MCP dynamic tools with non-string schemas
   tools?: Array<ToolInterface<any, any, any>>;
   limits?: SmartAgentLimits;
-  params?: SmartAgentParams;
+  // System prompt configuration
+  systemPrompt?: SystemPromptParams;
   // Enable internal planning workflow (todo list tool + prompt hints)
   useTodoList?: boolean;
   // Optional: normalize provider-specific usage into a common shape

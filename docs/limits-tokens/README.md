@@ -1,0 +1,8 @@
+# Limits and Token Management
+
+- maxToolCalls: total tool call limit per invoke
+- maxParallelTools: per-turn parallel tool limit
+- maxToken: before an agent call, if the estimated input exceeds this, summarization triggers
+- contextTokenLimit, summaryTokenLimit: compaction targets
+
+Token counting uses a lightweight heuristic by default (1 token ~ 4 characters), keeping performance high.

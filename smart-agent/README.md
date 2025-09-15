@@ -74,7 +74,7 @@ agent.invoke({ messages: [new HumanMessage("say hi via echo")] }).then(r => cons
 - model: LangChain LLM/ChatModel; if it supports tool calling, tools are bound automatically.
 - tools?: ToolInterface[] (LangChain tools or MCP tools via adapters)
 - limits?: { maxToolCalls?, maxParallelTools?, maxToken?, contextTokenLimit?, summaryTokenLimit? }
-- params?: { additionalSystemPrompt?, planning? }
+- systemPrompt?: { additionalSystemPrompt?, planning? }
 - useTodoList?: boolean (enables manage_todo_list tool + planning hints)
 - usageConverter?: (finalMessage, fullState, model) => any
 - debug?: { enabled: boolean, path?: string, callback?: (entry) => void }

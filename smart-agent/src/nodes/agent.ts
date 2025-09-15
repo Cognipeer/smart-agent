@@ -25,8 +25,8 @@ export function createAgentNode(opts: SmartAgentOptions) {
     // 3) Prepend a single, fresh system prompt for this turn only
     const systemMsg = new SystemMessage(
       buildSystemPrompt({
-        additionalSystemPrompt: opts.params?.additionalSystemPrompt,
-        planning: opts.useTodoList === true || opts.params?.planning === true,
+        additionalSystemPrompt: opts.systemPrompt?.additionalSystemPrompt,
+        planning: opts.useTodoList === true || opts.systemPrompt?.planning === true,
       })
     );
     const messages = [systemMsg, ...state.messages];

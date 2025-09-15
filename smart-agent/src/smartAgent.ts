@@ -17,7 +17,7 @@ export function createSmartAgent(opts: SmartAgentOptions) {
     const resolver = createResolverNode();
     // include default context tools in addition to user tools
     const stateRef: any = { toolHistory: undefined, toolHistoryArchived: undefined, todoList: undefined };
-    const planningEnabled = opts.useTodoList === true || opts.params?.planning === true;
+    const planningEnabled = opts.useTodoList === true || opts.systemPrompt?.planning === true;
     const contextTools = createContextTools(stateRef, { planningEnabled });
     const mergedTools = [...((opts.tools as any) ?? []), ...contextTools];
     const agent = createAgentNode({ ...opts, tools: mergedTools });
