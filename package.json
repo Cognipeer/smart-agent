@@ -1,0 +1,19 @@
+{
+  "name": "smart-agent-repo",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18.17" },
+  "scripts": {
+    "build": "cd smart-agent && npm run build",
+    "link:pkg": "npm link ./smart-agent",
+    "example:tool-limit": "OPENAI_API_KEY=dummy tsx --esm examples/tool-limit/tool-limit.ts",
+    "example:tools": "tsx --esm examples/tools/tools.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.16.2",
+    "zod": "^3.23.8",
+    "@langchain/core": "^0.3.0",
+    "@langchain/openai": "^0.6.11",
+    "@langchain/mcp-adapters": "^0.6.0"
+  }
+}
