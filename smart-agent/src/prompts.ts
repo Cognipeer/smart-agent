@@ -1,11 +1,6 @@
-export type SystemPromptParams = {
-  additionalSystemPrompt?: string;
-  planning?: boolean;
-};
-
-export function buildSystemPrompt(params?: SystemPromptParams) {
-  const extra = params?.additionalSystemPrompt?.trim();
-  const planningBlock = params?.planning
+export function buildSystemPrompt(extra?: string, planning?: boolean) {
+  const extraTrimmed = extra?.trim();
+  const planningBlock = planning
     ? `<planning>
 PLANNING IS MANDATORY.
 
@@ -27,7 +22,7 @@ Rules:
     "- If inputs are ambiguous or missing, ask one concise clarifying question.",
     "- Reuse prior tool results already present in the conversation when sufficient.",
     planningBlock,
-    extra ? `Extra instructions: ${extra}` : "",
+    extraTrimmed ? `Extra instructions: ${extraTrimmed}` : "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -1,5 +1,7 @@
 # Smart Agent Monorepo
 
+[Docs Website (GitHub Pages)](https://cognipeer.github.io/smart-agent/)
+
 A LangGraph-based smart agent library that treats tool calls as messages, supports automatic context summarization, optional planning, and rich debug logs. The NPM package lives under `smart-agent/` (name: `@cognipeer/smart-agent`), and runnable examples are under `examples/`.
 
 - Package: `smart-agent/`
@@ -189,7 +191,9 @@ npm publish --access public
 - Long histories: set `maxToken` to enable summarization between turns.
 
 ## Full documentation
-See `docs/` for focused guides:
+Visit the website: https://cognipeer.github.io/smart-agent/
+
+Repo copies of the guides live under `docs/`:
 - docs/README.md (nav)
 - docs/getting-started/README.md
 - docs/architecture/README.md

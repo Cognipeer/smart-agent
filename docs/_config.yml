@@ -1,0 +1,47 @@
+title: Smart Agent
+description: LangGraph-based agent with planning, tool limits, and context summarization.
+# Use GitHub Pages supported theme via remote_theme
+remote_theme: just-the-docs/just-the-docs
+plugins:
+  - jekyll-remote-theme
+color_scheme: light
+logo: 
+aux_links:
+  GitHub: https://github.com/Cognipeer/smart-agent
+aux_links_new_tab: true
+
+# Navigation
+# Set the baseurl if publishing from a subpath like /<repo>
+# On GitHub Pages project site it becomes the repo name automatically
+# baseurl: 
+url: https://cognipeer.github.io
+baseurl: /smart-agent
+repository: Cognipeer/smart-agent
+
+# Search
+search_enabled: true
+search:
+  tokenizer_separator: /[\s/\-]+/
+
+# Footer
+footer_content: "Copyright © 2025 Cognipeer"
+
+# Collections/pages
+heading_anchors: true
+permalink: pretty
+
+# Just the Docs navigation order via front matter nav_order
+# Defaults
+nav_enabled: true
+
+# Exclude logs from site build if any are under docs
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/
+  - "**/*.ts"
+  - "**/*.mjs"
+  - "**/*.json"
+  - "../examples/**"
+  - "../logs/**"

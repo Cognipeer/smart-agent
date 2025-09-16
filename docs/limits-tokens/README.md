@@ -1,3 +1,9 @@
+---
+title: Limits & Tokens
+nav_order: 11
+permalink: /limits-tokens/
+---
+
 # Limits and Token Management
 
 - maxToolCalls: total tool call limit per invoke

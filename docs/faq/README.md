@@ -1,3 +1,9 @@
+---
+title: FAQ
+nav_order: 12
+permalink: /faq/
+---
+
 # FAQ
 
 ## Why are my tool calls not triggering?

@@ -1,3 +1,9 @@
+---
+title: Getting Started
+nav_order: 3
+permalink: /getting-started/
+---
+
 # Getting Started
 
 This section is for consumers of the package.

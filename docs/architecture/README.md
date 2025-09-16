@@ -1,3 +1,9 @@
+---
+title: Architecture
+nav_order: 4
+permalink: /architecture/
+---
+
 # Architecture
 
 The agent is a LangGraph StateGraph composed of these nodes:

@@ -1,3 +1,8 @@
+---
+title: Overview
+nav_order: 2
+---
+
 # Documentation
 
 This folder contains focused guides for Smart Agent. Explore the following sections:

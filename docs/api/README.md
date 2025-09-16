@@ -1,3 +1,9 @@
+---
+title: API
+nav_order: 5
+permalink: /api/
+---
+
 # API
 
 Exports:

@@ -1,3 +1,9 @@
+---
+title: Examples
+nav_order: 9
+permalink: /examples/
+---
+
 # Examples
 
 The repository includes these examples:

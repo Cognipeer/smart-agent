@@ -17,7 +17,6 @@ const agent = createSmartAgent({
   model,
   tools: [echo],
   useTodoList: true,
-  systemPrompt: { planning: true },
   limits: { maxToolCalls: 5 },
   debug: { enabled: true }
 });

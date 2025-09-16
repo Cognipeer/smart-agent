@@ -23,11 +23,18 @@ export function createAgentNode(opts: SmartAgentOptions) {
 
 
     // 3) Prepend a single, fresh system prompt for this turn only
+    const structuredOutputHint = opts.outputSchema
+      ? [
+          "When you provide the FINAL assistant message, output ONLY a valid JSON value matching the required output schema.",
+          "Do not wrap it in code fences. Do not add any prose before or after. Return pure JSON only.",
+        ].join("\n")
+      : "";
+
     const systemMsg = new SystemMessage(
-      buildSystemPrompt({
-        additionalSystemPrompt: opts.systemPrompt?.additionalSystemPrompt,
-        planning: opts.useTodoList === true || opts.systemPrompt?.planning === true,
-      })
+      buildSystemPrompt(
+        [opts.systemPrompt, structuredOutputHint].filter(Boolean).join("\n"),
+        opts.useTodoList === true,
+      )
     );
     const messages = [systemMsg, ...state.messages];
 

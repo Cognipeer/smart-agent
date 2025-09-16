@@ -1,6 +1,7 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
 import { AIMessage, BaseMessage } from "@langchain/core/messages";
 import type { AgentInvokeResult, InvokeConfig, SmartAgentEvent, SmartAgentOptions, SmartState } from "./types.js";
+import { ZodSchema } from "zod";
 import { createResolverNode } from "./nodes/resolver.js";
 import { createAgentNode } from "./nodes/agent.js";
 import { createToolsNode } from "./nodes/tools.js";
@@ -13,11 +14,11 @@ import { countApproxTokens } from "./utils/utilTokens.js";
 
 // system prompt is provided by prompts.ts
 
-export function createSmartAgent(opts: SmartAgentOptions) {
+export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { outputSchema?: ZodSchema<TOutput> }) {
     const resolver = createResolverNode();
     // include default context tools in addition to user tools
     const stateRef: any = { toolHistory: undefined, toolHistoryArchived: undefined, todoList: undefined };
-    const planningEnabled = opts.useTodoList === true || opts.systemPrompt?.planning === true;
+    const planningEnabled = opts.useTodoList === true;
     const contextTools = createContextTools(stateRef, { planningEnabled });
     const mergedTools = [...((opts.tools as any) ?? []), ...contextTools];
     const agent = createAgentNode({ ...opts, tools: mergedTools });
@@ -101,7 +102,7 @@ export function createSmartAgent(opts: SmartAgentOptions) {
     const app = graph.compile();
 
     return {
-        invoke: async (input: SmartState, config?: InvokeConfig): Promise<AgentInvokeResult> => {
+        invoke: async (input: SmartState, config?: InvokeConfig): Promise<AgentInvokeResult<TOutput>> => {
             // Initialize debug session per invoke and stash on ctx
             const debugSession = createDebugSession(opts);
             const onEvent = config?.onEvent || opts.onEvent;
@@ -133,6 +134,31 @@ export function createSmartAgent(opts: SmartAgentOptions) {
                 content = finalMsg.content.map((c: any) => (typeof c === "string" ? c : c?.text ?? c?.content ?? "")).join("");
             }
 
+            // If an output schema is provided, try to parse structured output
+            let parsed: TOutput | undefined = undefined;
+            const schema = opts.outputSchema as ZodSchema<TOutput> | undefined;
+            if (schema && content) {
+                // Heuristic: try to locate a JSON block in content, else attempt direct parse
+                let jsonText: string | null = null;
+                const fenced = content.match(/```(?:json)?\n([\s\S]*?)```/i);
+                if (fenced && fenced[1]) {
+                    jsonText = fenced[1].trim();
+                } else {
+                    // try to extract first {...} or [...] block
+                    const braceIdx = content.indexOf("{");
+                    const bracketIdx = content.indexOf("[");
+                    const start = [braceIdx, bracketIdx].filter(i => i >= 0).sort((a,b)=>a-b)[0];
+                    if (start !== undefined) jsonText = content.slice(start).trim();
+                }
+                try {
+                    const raw = JSON.parse(jsonText ?? content);
+                    const resParsed = schema.parse(raw);
+                    parsed = resParsed as TOutput;
+                } catch {
+                    // ignore parse errors; user can inspect content
+                }
+            }
+
             // Default usage converter attempts OpenAI-style usage on message or model
             const defaultUsageConverter = (message: any, _state: any, model: any) => {
                 // Try LangChain OpenAI: message.usage or model.getNumTokens? Not guaranteed; keep flexible.
@@ -157,6 +183,7 @@ export function createSmartAgent(opts: SmartAgentOptions) {
 
             return {
                 content,
+                output: parsed as TOutput | undefined,
                 metadata: { usage },
                 messages: res.messages,
             };

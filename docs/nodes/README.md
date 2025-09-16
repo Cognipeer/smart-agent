@@ -1,3 +1,9 @@
+---
+title: Nodes
+nav_order: 6
+permalink: /nodes/
+---
+
 # Nodes (LangGraph)
 
 - resolver

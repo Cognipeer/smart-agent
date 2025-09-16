@@ -1,7 +1,7 @@
 import { AIMessage, BaseMessage } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { ToolInterface } from "@langchain/core/tools";
-import type { SystemPromptParams } from "./prompts.js";
+import type { ZodSchema } from "zod";
 
 export type Message = BaseMessage;
 
@@ -26,7 +26,7 @@ export type SmartAgentOptions = {
   tools?: Array<ToolInterface<any, any, any>>;
   limits?: SmartAgentLimits;
   // System prompt configuration
-  systemPrompt?: SystemPromptParams;
+  systemPrompt?: string; // Plain string system prompt to append to defaults
   // Enable internal planning workflow (todo list tool + prompt hints)
   useTodoList?: boolean;
   // Optional: normalize provider-specific usage into a common shape
@@ -39,6 +39,10 @@ export type SmartAgentOptions = {
   };
   // Event hook for runtime insights (can be overridden per invoke)
   onEvent?: (event: SmartAgentEvent) => void;
+  // Optional Zod schema for structured output; when provided, invoke() will attempt to parse
+  // the final assistant content as JSON and validate it. Parsed value is returned as result.output
+  // with full TypeScript inference.
+  outputSchema?: ZodSchema<any>;
 };
 
 export type SmartState = {
@@ -125,8 +129,11 @@ export type InvokeConfig = RunnableConfig & {
 };
 
 // Structured agent result returned by invoke
-export type AgentInvokeResult = {
+export type AgentInvokeResult<TOutput = unknown> = {
   content: string;
+  // If SmartAgentOptions.outputSchema is set, this will contain the parsed and validated output.
+  // TOutput will be inferred from the provided Zod schema.
+  output?: TOutput;
   metadata: { usage?: any };
   messages: Message[];
   state?: SmartState;
