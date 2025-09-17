@@ -55,6 +55,7 @@ const echo = createSmartTool({
 
 const model = new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY });
 const agent = createSmartAgent({
+  name: "ResearchHelper", // optional agent name (appears in system prompt header)
   model,
   tools: [echo],
   limits: { maxToolCalls: 5, maxToken: 8000 },
@@ -129,6 +130,7 @@ Exports come from `smart-agent/src/index.ts`:
 - Types: `SmartAgentOptions`, `SmartAgentLimits`, `SmartState`, `InvokeConfig`, `AgentInvokeResult`
 
 ### Key options (SmartAgentOptions)
+- name?: string – Human-friendly agent name. Added at top of system prompt (default: "Agent").
 - model: LangChain LLM/ChatModel (ideally supports `.bindTools`)
 - tools?: ToolInterface[] (LangChain tools or MCP tools via adapters)
 - limits?: { maxToolCalls?, maxParallelTools?, maxToken?, contextTokenLimit?, summaryTokenLimit? }
@@ -164,6 +166,26 @@ More: docs/debugging/README.md
 Token estimation is a lightweight heuristic by default (approx. 1 token ~ 4 chars). You can replace it if needed.
 
 More: docs/limits-tokens/README.md
+
+### Token usage tracking (per-request)
+
+Her LLM çağrısı (agent turn) sonrası sağlayıcının döndürdüğü ham `usage` objesi state'e eklenir:
+
+```ts
+const result = await agent.invoke({ messages: [new HumanMessage("Hello")] });
+console.log(result.state?.usage);
+/* {
+  perRequest: [
+    { id: "1726578123_ab12cd", modelName: "gpt-4o-mini", usage: { input_tokens: 12, output_tokens: 25, total_tokens: 37, cached_input_tokens: 5 }, timestamp: "...", turn: 1 }
+  ],
+  totals: { "gpt-4o-mini": { input: 12, output: 25, total: 37, cachedInput: 5 } }
+} */
+```
+
+Toplamlar model adına göre normalize edilmeye çalışılır; desteklenen alan adları:
+`input_tokens|prompt_tokens|promptTokens|total_prompt_tokens`, `output_tokens|completion_tokens|completionTokens|total_completion_tokens`, `total_tokens|totalTokens`. Ek olarak cache/shared prompt token alanları `cached_input_tokens|cached_prompt_tokens` isimleri ile toplanıp `cachedInput` altında birikir.
+
+Debug log dosyalarına sadece ilgili isteğin ham usage değeri yazılır; aggregate toplamlar yazılmaz.
 
 ## Development
 This repo is a mono layout with a package folder and examples.

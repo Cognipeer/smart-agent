@@ -5,15 +5,24 @@
   "engines": { "node": ">=18.17" },
   "scripts": {
     "build": "cd smart-agent && npm run build",
+  "dev:pkg": "cd smart-agent && npm run dev",
     "link:pkg": "npm link ./smart-agent",
-    "example:tool-limit": "OPENAI_API_KEY=dummy tsx --esm examples/tool-limit/tool-limit.ts",
-    "example:tools": "tsx --esm examples/tools/tools.ts"
+  "preexample:tool-limit": "npm run build",
+  "example:tool-limit": "tsx examples/tool-limit/tool-limit.ts",
+  "preexample:tools": "npm run build",
+  "example:tools": "tsx examples/tools/tools.ts",
+  "preexample:basic": "npm run build",
+  "example:basic": "tsx examples/basic/basic.ts",
+  "preexample:handoff": "npm run build",
+  "example:handoff": "tsx examples/handoff/handoff.ts"
   },
   "devDependencies": {
     "tsx": "^4.16.2",
     "zod": "^3.23.8",
     "@langchain/core": "^0.3.0",
     "@langchain/openai": "^0.6.11",
-    "@langchain/mcp-adapters": "^0.6.0"
+    "@langchain/mcp-adapters": "^0.6.0",
+    "@langchain/langgraph": "^0.2.0",
+    "@cognipeer/smart-agent": "file:smart-agent"
   }
 }

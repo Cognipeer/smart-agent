@@ -1,6 +1,6 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
-import { AIMessage, BaseMessage } from "@langchain/core/messages";
-import type { AgentInvokeResult, InvokeConfig, SmartAgentEvent, SmartAgentOptions, SmartState } from "./types.js";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import type { AgentInvokeResult, InvokeConfig, SmartAgentEvent, SmartAgentOptions, SmartState, SmartAgentInstance, AgentRuntimeConfig, HandoffDescriptor } from "./types.js";
 import { ZodSchema } from "zod";
 import { createResolverNode } from "./nodes/resolver.js";
 import { createAgentNode } from "./nodes/agent.js";
@@ -10,22 +10,28 @@ import { createToolLimitFinalizeNode } from "./nodes/toolLimitFinalize.js";
 import { createDebugSession, formatMarkdown, getModelName, serializeAgentTools, writeStepMarkdown } from "./utils/debugLogger.js";
 import { createContextSummarizeNode } from "./nodes/contextSummarize.js";
 import { createContextTools } from "./contextTools.js";
-import { countApproxTokens } from "./utils/utilTokens.js";
+import { createSmartTool } from "./tool.js";
+import { z } from "zod";
+import { countApproxTokens } from "./utils/utilTokens.js"; // kept for potential external use; internal decisions refactored
+import { resolverDecisionFactory, toolsDecisionFactory, finalizeDecisionFactory } from "./graph/decisions.js";
+import { normalizeUsage } from "./utils/usage.js";
 
 // system prompt is provided by prompts.ts
 
-export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { outputSchema?: ZodSchema<TOutput> }) {
+export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { outputSchema?: ZodSchema<TOutput> }): SmartAgentInstance<TOutput> {
     const resolver = createResolverNode();
     // include default context tools in addition to user tools
     const stateRef: any = { toolHistory: undefined, toolHistoryArchived: undefined, todoList: undefined };
     const planningEnabled = opts.useTodoList === true;
     const contextTools = createContextTools(stateRef, { planningEnabled });
-    const mergedTools = [...((opts.tools as any) ?? []), ...contextTools];
-    const agent = createAgentNode({ ...opts, tools: mergedTools });
-    const tools = createToolsNode(mergedTools, opts);
+    const mergedToolsBase = [...((opts.tools as any) ?? []), ...contextTools];
+    // Placeholder; real tool list will include handoff tools after instance constructed
+    const agent = createAgentNode({ ...opts, tools: mergedToolsBase });
+    const tools = createToolsNode(mergedToolsBase, opts);
     const toolLimitFinalize = createToolLimitFinalizeNode(opts);
     const shouldContinue = createShouldContinueNode(opts);
-    const contextSummarize = createContextSummarizeNode(opts);
+    const summarizationEnabled = opts.summarization !== false; // default true
+    const contextSummarize = summarizationEnabled ? createContextSummarizeNode(opts) : undefined as any;
 
     // Define state annotation
     const stateAnn = Annotation.Root({
@@ -37,75 +43,65 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
         ctx: Annotation,
         plan: Annotation,
         planVersion: Annotation,
+    usage: Annotation,
     });
 
     // Nodes
-    const graph = new StateGraph(stateAnn as any)
-        .addNode("resolver", resolver)
-        .addNode("agent", agent)
-        .addNode("tools", tools)
-        .addNode("toolLimitFinalize", toolLimitFinalize)
-        .addNode("contextSummarize", contextSummarize)
-        .addEdge(START as any, "resolver")
-        .addConditionalEdges("agent", shouldContinue, ["tools", "toolLimitFinalize", END])
-    .addConditionalEdges("resolver", (state: SmartState) => {
-            // Pre-agent token limit check: estimate tokens for the next agent input.
-            const maxTok = opts.limits?.maxToken;
-            if (!maxTok) return "agent";
-            try {
-                // We only consider visible messages; system prompt is injected later and may be large.
-                const allText = (state.messages || [])
-                    .map((m: any) => typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? c?.content ?? '')).join('') : '')
-                    .join("\n");
-                // Approximate token count to avoid heavy/wrong-context WASM deps.
-                const tokenCount = countApproxTokens(allText);
-                return tokenCount > maxTok ? "contextSummarize" : "agent";
-            } catch {
-                // Fallback to agent if encoding fails
-                return "agent";
-            }
-        }, ["agent", "contextSummarize"])
-        // After tools run, if we've reached or exceeded maxToolCalls, go to finalize; else loop to agent
-        .addConditionalEdges("tools", (state: SmartState) => {
+    const graph = new StateGraph(stateAnn as any);
+    graph.addNode("resolver", resolver);
+    graph.addNode("agent", agent);
+    graph.addNode("tools", tools);
+    graph.addNode("toolLimitFinalize", toolLimitFinalize);
+    if (summarizationEnabled) {
+        graph.addNode("contextSummarize", contextSummarize);
+    }
+    (graph as any).addEdge(START as any, "resolver");
+    (graph as any).addConditionalEdges("agent", shouldContinue, ["tools", "toolLimitFinalize", END]);
+    const resolverDecision = resolverDecisionFactory(opts, summarizationEnabled);
+    if (summarizationEnabled) {
+        (graph as any).addConditionalEdges("resolver", resolverDecision as any, ["agent", "contextSummarize"]);
+    } else {
+        (graph as any).addConditionalEdges("resolver", (_state: SmartState) => "agent", ["agent"]);
+    }
+    // After tools run, if we've reached or exceeded maxToolCalls, go to finalize; else loop to agent
+    const toolsDecision = toolsDecisionFactory(opts, summarizationEnabled);
+    if (summarizationEnabled) {
+        (graph as any).addConditionalEdges("tools", toolsDecision as any, ["agent", "toolLimitFinalize", "contextSummarize"]);
+    } else {
+        (graph as any).addConditionalEdges("tools", (state: SmartState) => {
             const max = (opts.limits?.maxToolCalls ?? 10) as number;
             const count = state.toolCallCount || 0;
             if (count >= max) return "toolLimitFinalize";
-            const maxTok = opts.limits?.maxToken;
-            if (!maxTok) return "agent";
-            try {
-                const allText = (state.messages || [])
-                    .map((m: any) => typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? c?.content ?? '')).join('') : '')
-                    .join("\n");
-                const tokenCount = countApproxTokens(allText);
-                return tokenCount > maxTok ? "contextSummarize" : "agent";
-            } catch {
-                return "agent";
-            }
-        }, ["agent", "toolLimitFinalize", "contextSummarize"]);
-    // From finalize -> precheck (summarize if needed) -> agent
-    graph.addConditionalEdges("toolLimitFinalize", (state: SmartState) => {
-        const maxTok = opts.limits?.maxToken;
-        if (!maxTok) return "agent";
-        try {
-            const allText = (state.messages || [])
-                .map((m: any) => typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? c?.content ?? '')).join('') : '')
-                .join("\n");
-            const tokenCount = countApproxTokens(allText);
-            return tokenCount > maxTok ? "contextSummarize" : "agent";
-        } catch {
             return "agent";
-        }
-    }, ["agent", "contextSummarize"]);
-    // After summarization, go to agent
-    graph.addEdge("contextSummarize", "agent");
+        }, ["agent", "toolLimitFinalize"]);
+    }
+    // From finalize -> precheck (summarize if needed) -> agent
+    const finalizeDecision = finalizeDecisionFactory(opts, summarizationEnabled);
+    if (summarizationEnabled) {
+        (graph as any).addConditionalEdges("toolLimitFinalize", finalizeDecision as any, ["agent", "contextSummarize"]);
+        // After summarization, go to agent if enabled
+        (graph as any).addEdge("contextSummarize", "agent");
+    } else {
+        (graph as any).addConditionalEdges("toolLimitFinalize", (_state: SmartState) => "agent", ["agent"]);
+    }
 
     const app = graph.compile();
 
-    return {
+    const runtime: AgentRuntimeConfig = {
+        name: opts.name,
+        model: opts.model,
+        tools: mergedToolsBase,
+        systemPrompt: opts.systemPrompt,
+        limits: opts.limits,
+        useTodoList: opts.useTodoList,
+        outputSchema: opts.outputSchema as any,
+    };
+
+    const instance: SmartAgentInstance<TOutput> = {
         invoke: async (input: SmartState, config?: InvokeConfig): Promise<AgentInvokeResult<TOutput>> => {
             // Initialize debug session per invoke and stash on ctx
             const debugSession = createDebugSession(opts);
-            const onEvent = config?.onEvent || opts.onEvent;
+            const onEvent = config?.onEvent;
             const emit = (e: SmartAgentEvent) => {
                 try { onEvent?.(e); } catch (_) { /* ignore */ }
             };
@@ -120,11 +116,13 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
                 ctx: { ...(input.ctx || {}), __debugSession: debugSession, __onEvent: onEvent },
                 plan: input.plan || null,
                 planVersion: input.planVersion || 0,
+                agent: input.agent || runtime,
+                usage: input.usage || { perRequest: [], totals: {} },
             };
             // keep stateRef pointers up to date for context tools
             stateRef.toolHistory = initial.toolHistory;
             stateRef.toolHistoryArchived = initial.toolHistoryArchived;
-            const res = await app.invoke(initial, { ...config, recursionLimit: (input.toolCallCount ? input.toolCallCount * 2 : 50) });
+            const res: any = await app.invoke(initial, { ...config, recursionLimit: (input.toolCallCount ? input.toolCallCount * 2 : 50) });
 
             const finalMsg = res.messages[res.messages.length - 1];
 
@@ -133,7 +131,6 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
             else if (Array.isArray(finalMsg?.content)) {
                 content = finalMsg.content.map((c: any) => (typeof c === "string" ? c : c?.text ?? c?.content ?? "")).join("");
             }
-
             // If an output schema is provided, try to parse structured output
             let parsed: TOutput | undefined = undefined;
             const schema = opts.outputSchema as ZodSchema<TOutput> | undefined;
@@ -147,7 +144,7 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
                     // try to extract first {...} or [...] block
                     const braceIdx = content.indexOf("{");
                     const bracketIdx = content.indexOf("[");
-                    const start = [braceIdx, bracketIdx].filter(i => i >= 0).sort((a,b)=>a-b)[0];
+                    const start = [braceIdx, bracketIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
                     if (start !== undefined) jsonText = content.slice(start).trim();
                 }
                 try {
@@ -167,10 +164,13 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
                 // Some models expose last usage via model?.lastUsage
                 return model?.lastUsage || undefined;
             };
-            const usage = (opts.usageConverter || defaultUsageConverter)(finalMsg, res as any, opts.model);
+            const rawUsage = (opts.usageConverter || defaultUsageConverter)(finalMsg, res as any, opts.model);
+            const normalized = normalizeUsage(rawUsage) || rawUsage;
+            // Attach per-request normalized usage already handled in agent node; here we expose the evolving state usage aggregation
+            const stateUsage = (res as any).usage;
 
             // Emit metadata + final answer events
-            emit({ type: "metadata", usage, modelName: getModelName((opts as any).model), limits: opts.limits });
+            emit({ type: "metadata", usage: stateUsage, modelName: getModelName((opts as any).model), limits: opts.limits });
 
             let contentEvent = "";
             if (typeof finalMsg?.content === "string") contentEvent = finalMsg.content;
@@ -184,11 +184,54 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
             return {
                 content,
                 output: parsed as TOutput | undefined,
-                metadata: { usage },
+                metadata: { usage: stateUsage },
                 messages: res.messages,
+                state: res as SmartState,
             };
         },
+        asTool: ({ toolName, description, inputDescription }: { toolName: string; description?: string; inputDescription?: string }) => {
+            // Simple schema: single string input. Accept either { input: string } or raw string coerced.
+            const schema = z.object({ input: z.string().describe(inputDescription || "Input message for delegated agent") });
+            return createSmartTool({
+                name: toolName,
+                description: description || `Delegate task to agent ${opts.name || 'Agent'}`,
+                schema,
+                func: async ({ input }) => {
+                    const res = await instance.invoke({ messages: [new HumanMessage(input)] });
+                    return { content: res.content };
+                }
+            });
+        },
+        asHandoff: ({ toolName, description, schema }: { toolName?: string; description?: string; schema?: ZodSchema<any>; }): HandoffDescriptor => {
+            const finalName = toolName || `handoff_to_${runtime.name || 'agent'}`;
+            const zschema = schema || z.object({ reason: z.string().describe('Reason for handing off') });
+            const tool = createSmartTool({
+                name: finalName,
+                description: description || `Handoff control to agent ${runtime.name || 'Agent'}`,
+                schema: zschema,
+                func: async (_args: any) => {
+                    return { __handoff: { runtime } };
+                }
+            });
+            return { type: 'handoff', toolName: finalName, description: description || '', schema: zschema, target: instance } as any;
+        },
+        __runtime: runtime,
     };
+    // If root agent has handoffs, we should append their tools to runtime.tools AFTER we have instance (so child asHandoff can reference)
+    if (opts.handoffs && Array.isArray(opts.handoffs)) {
+        // Each handoff descriptor has target with __runtime; create tool that triggers switching to that runtime
+        const handoffTools = opts.handoffs.map(h => {
+            const schema = h.schema || z.object({ reason: z.string().describe('Reason for handoff') });
+            return createSmartTool({
+                name: h.toolName,
+                description: h.description || `Handoff to ${h.target.__runtime.name || 'agent'}`,
+                schema,
+                func: async (_args: any) => ({ __handoff: { runtime: h.target.__runtime } })
+            });
+        });
+        runtime.tools = [...runtime.tools, ...handoffTools];
+    }
+    return instance;
 }
 
 // (Types are exported from src/index.ts via ./types.js)

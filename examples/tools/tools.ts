@@ -4,7 +4,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
 // Preflight env checks to provide clearer errors during local runs
-const OPENAI_API_KEY = "sk-proj-IktupyPphnPWR8vLJICET3BlbkFJMWrZt6FOjrSCTvkhFoyO";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const TAVILY_API_KEY = "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";
 if (!OPENAI_API_KEY) {
     console.error("Missing OPENAI_API_KEY. Set it before running: export OPENAI_API_KEY=sk-...\n(Optional) Set TAVILY_API_KEY if you plan to use tavily_search.");
@@ -60,13 +60,17 @@ const agent = createSmartAgent({
     useTodoList: true,
     limits: { maxToolCalls: 10, maxToken: 8000 },
     debug: { enabled: true },
-    onEvent: (e: any) => {
-        if (e.type === "tool_call") console.log(`[tool] ${e.phase} ${e.name}`, e.id || "-");
-        if (e.type === "plan") console.log(`[plan]`, e.todoList?.length ?? 0);
-        if (e.type === "summarization") console.log(`[sum]`, e.archivedCount ?? 0);
-        if (e.type === "metadata") console.log(`[meta]`, e.modelName, e.usage);
-    }
 });
 
-const res = await agent.invoke({ messages: [new HumanMessage("Search latest news about LangChain MCP and summarize.")] });
+const res = await agent.invoke(
+    { messages: [new HumanMessage("Search latest news about LangChain MCP and summarize.")] },
+    {
+        onEvent: (e: any) => {
+            if (e.type === "tool_call") console.log(`[tool] ${e.phase} ${e.name}`, e.id || "-");
+            if (e.type === "plan") console.log(`[plan]`, e.todoList?.length ?? 0);
+            if (e.type === "summarization") console.log(`[sum]`, e.archivedCount ?? 0);
+            if (e.type === "metadata") console.log(`[meta]`, e.modelName, e.usage);
+        }
+    }
+);
 console.log("RES", res.content);

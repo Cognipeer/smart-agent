@@ -1,21 +1,33 @@
 import { Tool, type ToolInterface } from "@langchain/core/tools";
-import type { SmartAgentEvent, SmartAgentOptions, SmartState } from "../types.js";
+import type { SmartAgentEvent, SmartAgentOptions, SmartState, HandoffDescriptor, AgentRuntimeConfig } from "../types.js";
 import { nanoid } from "nanoid";
 import { ToolMessage } from "@langchain/core/messages";
 
-export function createToolsNode(tools: Array<ToolInterface<any, any, any>>, opts?: SmartAgentOptions) {
-  const toolByName = new Map<string, ToolInterface>();
-  for (const t of tools) toolByName.set((t as any).name, t);
+export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>>, opts?: SmartAgentOptions) {
+  const baseToolByName = new Map<string, ToolInterface>();
+  for (const t of initialTools) baseToolByName.set((t as any).name, t);
 
   return async (state: SmartState): Promise<any> => {
+    const runtime = state.agent || {
+      name: opts?.name,
+      model: opts?.model,
+      tools: initialTools,
+      limits: opts?.limits,
+      systemPrompt: opts?.systemPrompt,
+      useTodoList: opts?.useTodoList,
+      outputSchema: (opts as any)?.outputSchema,
+    } as AgentRuntimeConfig;
+    const activeTools: Array<ToolInterface<any, any, any>> = runtime.tools as any;
+    const toolByName = new Map<string, ToolInterface>();
+    for (const t of activeTools) toolByName.set((t as any).name, t);
     const limits = {
-      maxToolCalls: (opts?.limits?.maxToolCalls ?? 10) as number,
-      maxParallelTools: Math.max(1, (opts?.limits?.maxParallelTools ?? 1) as number),
+      maxToolCalls: (runtime.limits?.maxToolCalls ?? 10) as number,
+      maxParallelTools: Math.max(1, (runtime.limits?.maxParallelTools ?? 1) as number),
     };
     const appended: ToolMessage[] = [];
     const onEvent = (state.ctx as any)?.__onEvent as ((e: SmartAgentEvent) => void) | undefined;
     // Sync latest state into context tools if they carry a stateRef
-    for (const t of toolByName.values()) {
+  for (const t of toolByName.values()) {
       const anyT: any = t as any;
       if (anyT._stateRef && typeof anyT._stateRef === "object") {
         anyT._stateRef.toolHistory = state.toolHistory;
@@ -78,6 +90,19 @@ export function createToolsNode(tools: Array<ToolInterface<any, any, any>>, opts
         else if (typeof anyTool._call === "function") output = await anyTool._call(args);
         else if (typeof anyTool.run === "function") output = await anyTool.run(args);
         else throw new Error("Tool is not invokable");
+        // Detect handoff signature output: we decide that a handoff tool returns { __handoff: AgentRuntimeConfig }
+        if (output && typeof output === 'object' && output.__handoff && output.__handoff.runtime) {
+          const newRuntime: AgentRuntimeConfig = output.__handoff.runtime;
+          // switch active agent; messages unchanged except we reply ok
+          const executionId = nanoid();
+          toolHistory.push({ executionId, toolName: (t as any).name, args, output: 'handoff:ok', rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
+          appended.push(new ToolMessage({ content: 'ok', tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));
+          onEvent?.({ type: 'handoff', from: runtime.name, to: newRuntime.name, toolName: (t as any).name });
+          state.agent = newRuntime;
+          onEvent?.({ type: 'tool_call', phase: 'success', name: (t as any).name, id: tc.id, args, result: 'handoff', durationMs: Date.now() - start });
+          toolCount += 1;
+          return;
+        }
         const content = typeof output === "string" ? output : JSON.stringify(output);
         const executionId = nanoid();
         toolHistory.push({ executionId, toolName: (t as any).name, args, output, rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
@@ -100,6 +125,6 @@ export function createToolsNode(tools: Array<ToolInterface<any, any, any>>, opts
       await Promise.all(batch.map(runOne));
     }
 
-    return { messages: [...state.messages, ...appended], toolCallCount: toolCount, toolHistory };
+  return { messages: [...state.messages, ...appended], toolCallCount: toolCount, toolHistory, agent: state.agent };
   };
 }

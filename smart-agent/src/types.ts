@@ -21,10 +21,16 @@ export type SmartAgentLimits = {
 };
 
 export type SmartAgentOptions = {
+  // Human-friendly agent name used in prompts and logging
+  name?: string;
   model: any; // a LangChain LLM or ChatModel with .bindTools
   // Accept any LangChain tool implementation, including MCP dynamic tools with non-string schemas
   tools?: Array<ToolInterface<any, any, any>>;
+  // Predefined handoff targets exposed as tools automatically
+  handoffs?: HandoffDescriptor<any, any, any>[];
   limits?: SmartAgentLimits;
+  // Toggle token-aware context summarization. Default: true. Set to false to disable.
+  summarization?: boolean;
   // System prompt configuration
   systemPrompt?: string; // Plain string system prompt to append to defaults
   // Enable internal planning workflow (todo list tool + prompt hints)
@@ -37,16 +43,37 @@ export type SmartAgentOptions = {
     path?: string; // base directory for logs; defaults to <project_root>/logs
     callback?: (entry: { sessionId: string; stepIndex: number; fileName: string; markdown: string }) => void;
   };
-  // Event hook for runtime insights (can be overridden per invoke)
-  onEvent?: (event: SmartAgentEvent) => void;
   // Optional Zod schema for structured output; when provided, invoke() will attempt to parse
   // the final assistant content as JSON and validate it. Parsed value is returned as result.output
   // with full TypeScript inference.
   outputSchema?: ZodSchema<any>;
 };
 
+// Runtime representation of an agent (used inside state.agent)
+export type AgentRuntimeConfig = {
+  name?: string;
+  model: any;
+  tools: Array<ToolInterface<any, any, any>>;
+  systemPrompt?: string;
+  limits?: SmartAgentLimits;
+  useTodoList?: boolean;
+  outputSchema?: ZodSchema<any>;
+};
+
+// Handoff descriptor returned from childAgent.asHandoff(...)
+export type HandoffDescriptor<TIn = any, TOut = any, TParsed = any> = {
+  type: "handoff";
+  toolName: string;
+  description: string;
+  // Optional zod schema for handoff arguments; fallback is { reason: string }
+  schema?: ZodSchema<any>;
+  target: SmartAgentInstance<TParsed> & { __runtime: AgentRuntimeConfig };
+};
+
 export type SmartState = {
   messages: Message[];
+  // Active agent runtime parameters (dynamically swapped on handoff)
+  agent?: AgentRuntimeConfig;
   summaries?: string[];
   toolHistory?: Array<{
     executionId: string;
@@ -80,6 +107,19 @@ export type SmartState = {
   planVersion?: number;
   metadata?: Record<string, any>;
   ctx?: Record<string, any>;
+  // Usage tracking (per agent model call). Each agent turn that produces an AI response
+  // appends an entry to usage.perRequest. totals aggregates by modelName.
+  usage?: {
+    perRequest: Array<{
+      id: string;            // unique id per request
+      modelName: string;     // resolved provider/model identifier
+      usage: any;            // raw provider usage object (unmodified)
+      timestamp: string;     // ISO time of capture
+      turn: number;          // 1-based index of agent turn producing this response
+      cachedInput?: number;  // cached / reused prompt tokens (provider specific)
+    }>;
+    totals: Record<string, { input: number; output: number; total: number; cachedInput: number }>;
+  };
 };
 
 // Event types for observability and future streaming support
@@ -121,7 +161,20 @@ export type MetadataEvent = {
   [key: string]: any;
 };
 
-export type SmartAgentEvent = ToolCallEvent | PlanEvent | SummarizationEvent | FinalAnswerEvent | MetadataEvent;
+export type HandoffEvent = {
+  type: "handoff";
+  from?: string;
+  to?: string;
+  toolName: string;
+};
+
+export type SmartAgentEvent =
+  | ToolCallEvent
+  | PlanEvent
+  | SummarizationEvent
+  | FinalAnswerEvent
+  | MetadataEvent
+  | HandoffEvent;
 
 export type InvokeConfig = RunnableConfig & {
   // Optional per-call event hook (overrides SmartAgentOptions.onEvent if provided)
@@ -137,4 +190,14 @@ export type AgentInvokeResult<TOutput = unknown> = {
   metadata: { usage?: any };
   messages: Message[];
   state?: SmartState;
+};
+
+// Public shape returned by createSmartAgent
+export type SmartAgentInstance<TOutput = unknown> = {
+  invoke: (input: SmartState, config?: InvokeConfig) => Promise<AgentInvokeResult<TOutput>>;
+  // Convert this agent into a tool usable by another agent. Accepts optional overrides.
+  asTool: (opts: { toolName: string; description?: string; inputDescription?: string } ) => import("@langchain/core/tools").ToolInterface<any, any, any>;
+  // Create a handoff descriptor so another agent can switch control to this one mid-conversation
+  asHandoff: (opts: { toolName?: string; description?: string; schema?: ZodSchema<any>; }) => HandoffDescriptor<any, any, TOutput>;
+  __runtime: AgentRuntimeConfig;
 };

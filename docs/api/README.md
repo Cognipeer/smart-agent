@@ -20,6 +20,7 @@ Exports:
 - limits?: { maxToolCalls?, maxParallelTools?, maxToken?, contextTokenLimit?, summaryTokenLimit? }
 - systemPrompt?: { additionalSystemPrompt?, planning? }
 - useTodoList?: boolean
+- summarization?: boolean (default true) – disable to turn off token-aware context summarization
 - usageConverter?: (finalMessage, fullState, model) => any
 - debug?: { enabled: boolean, path?: string, callback?: (entry) => void }
 - onEvent?: (event) => void

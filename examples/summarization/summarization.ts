@@ -17,6 +17,7 @@ const agent = createSmartAgent({
   model,
   tools: [echo],
   limits: { maxToolCalls: 5, maxToken: 500 },
+  // summarization: false, // Uncomment to disable summarization entirely
 });
 
 const res = await agent.invoke({ messages: [new HumanMessage("Start a very long session to trigger summarization.")] });

@@ -1,5 +1,6 @@
-export function buildSystemPrompt(extra?: string, planning?: boolean) {
+export function buildSystemPrompt(extra?: string, planning?: boolean, name: string = "Agent") {
   const extraTrimmed = extra?.trim();
+  const agentHeader = `Agent Name: ${name}`;
   const planningBlock = planning
     ? `<planning>
 PLANNING IS MANDATORY.
@@ -13,6 +14,7 @@ Rules:
 </planning>`
     : "";
   return [
+    agentHeader,
     "You are an advanced AI agent that is concise, accurate, and helpful.",
     "Follow these rules:",
     "- Use tools only when they add value; avoid redundant calls.",

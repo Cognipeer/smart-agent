@@ -38,3 +38,4 @@ const agent = createSmartAgent({
 
 const res = await agent.invoke({ messages: [new HumanMessage("say hi via echo")] });
 console.log("Content:", res.content);
+console.log("Usage:", JSON.stringify(res.metadata));

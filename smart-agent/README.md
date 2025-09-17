@@ -76,6 +76,7 @@ agent.invoke({ messages: [new HumanMessage("say hi via echo")] }).then(r => cons
 - limits?: { maxToolCalls?, maxParallelTools?, maxToken?, contextTokenLimit?, summaryTokenLimit? }
 - systemPrompt?: { additionalSystemPrompt?, planning? }
 - useTodoList?: boolean (enables manage_todo_list tool + planning hints)
+- summarization?: boolean (default: true). Set to false to disable token-aware context summarization; when disabled, `limits.maxToken` won't trigger summarization.
 - usageConverter?: (finalMessage, fullState, model) => any
 - debug?: { enabled: boolean, path?: string, callback?: (entry) => void }
 
@@ -99,6 +100,19 @@ All examples live in the repository root under `examples/` with per-example READ
 - mcp-tavily/
 
 See each folder for how to run.
+
+### Disable summarization
+
+Pass `summarization: false` to turn off automatic context summarization (default is on):
+
+```ts
+const agent = createSmartAgent({
+  model,
+  tools: [echo],
+  summarization: false, // disable summarization
+  limits: { maxToolCalls: 5, maxToken: 500 }, // maxToken won't trigger summarization when disabled
+});
+```
 
 ## Build
 - ESM + CJS builds via tsup. Exports map ensures both import and require work.

@@ -52,23 +52,83 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
             const limit = Math.max(1000, Number(summaryTokenLimit) || 100000);
             const safetyBuffer = Math.floor(Math.min(4000, limit * 0.05)); // keep 5% or up to 4k as buffer
             const perCallBudget = Math.max(500, limit - safetyBuffer);
+            const safeToolPair = (opts as any)?.safeToolPair !== false; // default true
 
-            // Create chunks of messages that fit within perCallBudget tokens alongside the system prompt
+            // Create chunks ensuring (when enabled) that an AI tool-call message and its ToolMessage responses
+            // are not split across different chunks. We allow slight token overflow to keep pairs intact.
             const chunks: any[][] = [];
             let current: any[] = [];
             let currentTokens = countApproxTokens(sysText);
-            for (const m of messages) {
-                const t = getText(m);
-                const tks = countApproxTokens(t);
-                if (currentTokens + tks > perCallBudget && current.length > 0) {
+            // Track pending tool call ids from the last AI message added to current chunk.
+            let pendingToolCalls: Set<string> = new Set();
+
+            const extractToolCallIds = (msg: any): string[] => {
+                const tc = msg?.additional_kwargs?.tool_calls;
+                if (!Array.isArray(tc) || tc.length === 0) return [];
+                return tc.map((c: any) => c?.id).filter((id: any) => typeof id === "string");
+            };
+
+            for (let i = 0; i < messages.length; i++) {
+                const m = messages[i];
+                const text = getText(m);
+                const tks = countApproxTokens(text);
+                const isAIWithToolCalls = safeToolPair && m instanceof AIMessage && extractToolCallIds(m).length > 0;
+                const isToolMsg = safeToolPair && m instanceof ToolMessage;
+                const toolCallId = isToolMsg ? (m as any).tool_call_id : undefined;
+
+                // If adding this message would exceed budget, decide whether to split or to keep grouping with tool pairs.
+                const wouldExceed = currentTokens + tks > perCallBudget && current.length > 0;
+
+                if (wouldExceed) {
+                    let forceAddToCurrent = false;
+                    if (safeToolPair) {
+                        // Case 1: We're in the middle of unresolved tool calls and this is one of their responses -> keep going (overflow ok)
+                        if (isToolMsg && toolCallId && pendingToolCalls.has(toolCallId)) {
+                            forceAddToCurrent = true;
+                        } else if (isAIWithToolCalls) {
+                            // Starting a new AI tool call set: better to start a new chunk if current has content.
+                            // We'll push current chunk first to avoid mixing separate tool call groups.
+                        } else if (pendingToolCalls.size > 0) {
+                            // We're still expecting tool responses but this message is not a matching tool response.
+                            // Conclude current chunk now to avoid losing alignment; start new chunk.
+                        }
+                    }
+
+                    if (!forceAddToCurrent) {
+                        // Close current chunk if we are not force-keeping this message inside it.
+                        if (current.length > 0) {
+                            chunks.push(current);
+                        }
+                        current = [];
+                        currentTokens = countApproxTokens(sysText);
+                        pendingToolCalls = new Set();
+                    }
+                }
+
+                // Add the message to current chunk
+                current.push(m);
+                currentTokens += tks;
+
+                // If we just added an AI tool-call message, register its tool call ids as pending.
+                if (isAIWithToolCalls) {
+                    for (const id of extractToolCallIds(m)) pendingToolCalls.add(id);
+                }
+                // If it's a tool message that resolves a pending call id, mark it resolved.
+                if (isToolMsg && toolCallId && pendingToolCalls.has(toolCallId)) {
+                    pendingToolCalls.delete(toolCallId);
+                }
+
+                // If we've exceeded budget AND there are no more pending tool call responses expected, we can safely flush.
+                if (currentTokens >= perCallBudget && pendingToolCalls.size === 0) {
                     chunks.push(current);
                     current = [];
                     currentTokens = countApproxTokens(sysText);
+                    pendingToolCalls = new Set();
                 }
-                current.push(m);
-                currentTokens += tks;
             }
-            if (current.length > 0) chunks.push(current);
+            if (current.length > 0) {
+                chunks.push(current);
+            }
 
             // For each chunk, ask model to summarize that chunk
             const partials: string[] = [];
