@@ -10,7 +10,7 @@ This section is for consumers of the package.
 
 ## Install
 ```sh
-npm install @cognipeer/smart-agent @langchain/core @langchain/langgraph
+npm install @cognipeer/smart-agent @langchain/core
 # Optional providers/helpers
 npm install @langchain/openai zod
 ```

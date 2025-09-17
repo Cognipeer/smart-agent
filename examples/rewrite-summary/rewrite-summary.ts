@@ -1,5 +1,4 @@
 import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { z } from "zod";
 
 let turn = 0;
@@ -8,9 +7,9 @@ const fakeModel = {
   async invoke(messages: any[]) {
     turn++;
     if (turn === 1) {
-      return new AIMessage({ content: "", tool_calls: [{ id: "call_1", name: "heavy_echo", args: { text: "hello" } }] });
+  return { role: 'assistant', content: "", tool_calls: [{ id: "call_1", type: 'function', function: { name: "heavy_echo", arguments: JSON.stringify({ text: "hello" }) } }] };
     }
-    return new AIMessage({ content: "final after summarization" });
+  return { role: 'assistant', content: "final after summarization" };
   },
 };
 
@@ -27,9 +26,9 @@ const agent = createSmartAgent({
   limits: { maxToolCalls: 5, maxToken: 200 },
 });
 
-let state: any = { messages: [new HumanMessage("please run heavy_echo")] };
+let state: any = { messages: [{ role: 'user', content: "please run heavy_echo" }] };
 let res = await agent.invoke(state);
 state = { ...state, messages: res.messages };
-state.messages.push(new HumanMessage("go on"));
+state.messages.push({ role: 'user', content: "go on" });
 res = await agent.invoke(state);
-console.log(JSON.stringify(res.messages.slice(-6).map((m: any) => ({ type: m.getType?.(), name: (m as any).name, id: (m as any).tool_call_id, len: String((m as any).content).length })), null, 2));
+console.log(JSON.stringify(res.messages.slice(-6).map((m: any) => ({ role: m.role, name: (m as any).name, id: (m as any).tool_call_id, len: String((m as any).content).length })), null, 2));

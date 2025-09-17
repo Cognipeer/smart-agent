@@ -1,7 +1,7 @@
 {
   "name": "@cognipeer/smart-agent",
   "version": "0.1.1",
-  "description": "Composable LangGraph-based smart agent with message-based tool turns and built-in model/tool helpers.",
+  "description": "Composable lightweight smart agent core (no LangGraph) with pluggable model adapters (LangChain optional).",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.cjs",
@@ -26,11 +26,17 @@
   },
   "peerDependencies": {
     "@langchain/core": "^0.3.0",
-    "@langchain/langgraph": "^0.2.0"
+    "openai": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
   },
   "dependencies": {
-    "@langchain/openai": "^0.6.11",
-    "@langchain/mcp-adapters": "^0.6.0",
     "nanoid": "^5.0.7",
     "zod": "^3.23.8"
   },

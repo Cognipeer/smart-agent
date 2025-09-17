@@ -1,11 +1,11 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage } from "@langchain/core/messages";
+import { fromLangchainModel } from "@cognipeer/smart-agent";
 import { z } from "zod";
 import { createSmartAgent } from "@cognipeer/smart-agent";
 
 async function main() {
   // Base model (replace with env OPENAI_API_KEY configured)
-  const model = new ChatOpenAI({ modelName: "gpt-4o-mini" });
+  const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini" }));
 
   const financeAgent = createSmartAgent({
     name: "Finance",
@@ -30,7 +30,7 @@ async function main() {
   });
 
   const events: any[] = [];
-  const res = await rootAgent.invoke({ messages: [ new HumanMessage("Calculate a ROI and then write a small TypeScript function for it.") ] }, {
+  const res = await rootAgent.invoke({ messages: [ { role: 'user', content: "Calculate a ROI and then write a small TypeScript function for it." } ] }, {
     onEvent: (e) => { events.push(e); }
   });
 

@@ -1,6 +1,5 @@
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
+import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
+import { ChatOpenAI } from "@langchain/openai"; // optional
 import { z } from "zod";
 
 const echo = createSmartTool({
@@ -15,19 +14,19 @@ const fakeModel = {
   bindTools() { return this; },
   async invoke(messages: any[]) {
     turn++;
-    const last = messages[messages.length - 1];
     if (turn === 1) {
-      return new AIMessage({
+      return {
+        role: 'assistant',
         content: "",
-        tool_calls: [{ id: "call_1", name: "echo", args: { text: "hi" } }],
-      });
+        tool_calls: [{ id: "call_1", type: 'function', function: { name: "echo", arguments: JSON.stringify({ text: "hi" }) } }],
+      };
     }
-    return new AIMessage({ content: "done" });
+    return { role: 'assistant', content: "done" };
   },
 };
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const model = apiKey ? new ChatOpenAI({ model: "gpt-4o-mini", apiKey }) : (fakeModel as any);
+const model = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakeModel as any);
 
 const agent = createSmartAgent({
   model,
@@ -36,6 +35,6 @@ const agent = createSmartAgent({
   systemPrompt: "Keep answers crisp.",
 });
 
-const res = await agent.invoke({ messages: [new HumanMessage("say hi via echo")] });
+const res = await agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] });
 console.log("Content:", res.content);
 console.log("Usage:", JSON.stringify(res.metadata));

@@ -26,3 +26,5 @@ Ensure the `OPENAI_API_KEY` environment variable is set.
 
 ## Notes
 You can supply a custom argument schema using e.g. `codingAgent.asHandoff({ schema: z.object({ reason: z.string(), extra: z.string().optional() }) })`. If omitted, the default `{ reason: string }` schema is used.
+
+Adapter: Uses `fromLangchainModel` internally; messages are plain objects (`{ role, content }`).

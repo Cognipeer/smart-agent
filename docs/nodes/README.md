@@ -4,13 +4,13 @@ nav_order: 6
 permalink: /nodes/
 ---
 
-# Nodes (LangGraph)
+# Nodes
 
+Conceptual phases implemented as simple async functions:
 - resolver
 - agent
 - tools
-- shouldContinue
 - toolLimitFinalize
-- contextSummarize
+- contextSummarize (conditional)
 
-Each node lives under `smart-agent/src/nodes`, with the flow orchestrated by StateGraph conditional edges.
+They live under `smart-agent/src/nodes` and are orchestrated by an internal while-loop (no external graph library).

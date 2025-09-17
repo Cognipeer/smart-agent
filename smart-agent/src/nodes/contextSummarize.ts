@@ -1,4 +1,9 @@
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+// Lightweight message helpers to avoid hard dependency on LangChain
+type LiteMsg = { role: string; content: any; name?: string; [k: string]: any };
+const systemMessage = (content: string): LiteMsg => ({ role: 'system', content });
+const humanMessage = (content: string): LiteMsg => ({ role: 'user', content });
+// tool messages use role 'tool'
+const toolMessage = (name: string, content: any, tool_call_id?: string): LiteMsg => ({ role: 'tool', name, content, tool_call_id });
 import type { SmartAgentEvent, SmartAgentOptions, SmartState } from "../types.js";
 import { nanoid } from "nanoid";
 import { countApproxTokens } from "../utils/utilTokens.js";
@@ -44,7 +49,7 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
 
         // Build a robust, compact system instruction
         const sysText = "You are a concise summarization assistant for a tool-using agent. Summarize prior tool executions into a compact brief that preserves key facts, decisions, and outputs. Reference executionId values where helpful. Avoid repeating raw data; prefer synthesis.";
-        const sys = new SystemMessage(sysText);
+    const sys = systemMessage(sysText);
 
         // Token-aware chunking and iterative summarization to respect provider limits
         let summaryText = "";
@@ -72,8 +77,8 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
                 const m = messages[i];
                 const text = getText(m);
                 const tks = countApproxTokens(text);
-                const isAIWithToolCalls = safeToolPair && m instanceof AIMessage && extractToolCallIds(m).length > 0;
-                const isToolMsg = safeToolPair && m instanceof ToolMessage;
+                const isAIWithToolCalls = safeToolPair && (m as any)?.role === 'assistant' && extractToolCallIds(m).length > 0;
+                const isToolMsg = safeToolPair && (m as any)?.role === 'tool';
                 const toolCallId = isToolMsg ? (m as any).tool_call_id : undefined;
 
                 // If adding this message would exceed budget, decide whether to split or to keep grouping with tool pairs.
@@ -148,7 +153,7 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
 
             // If more than one partial, iteratively merge them under the same token budget
             const mergeSysText = "You merge partial summaries into a single cohesive, non-redundant summary that preserves key facts and decisions. Be concise.";
-            const mergeSys = new SystemMessage(mergeSysText);
+            const mergeSys = systemMessage(mergeSysText);
 
             const mergeIteratively = async (texts: string[]): Promise<string> => {
                 if (texts.length === 0) return "";
@@ -172,7 +177,7 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
 
                 const next: string[] = [];
                 for (const g of groups) {
-                    const mergePrompt = new HumanMessage(`Merge the following partial summaries into a single concise brief. Avoid duplication, keep key facts and decisions.\n\n${g.join("\n")}\n\nMerged summary:`);
+                    const mergePrompt = humanMessage(`Merge the following partial summaries into a single concise brief. Avoid duplication, keep key facts and decisions.\n\n${g.join("\n")}\n\nMerged summary:`);
                     try {
                         const r: any = await (model?.invoke ? model.invoke([mergeSys, mergePrompt]) : null);
                         const cc = r?.content;
@@ -199,22 +204,22 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
         };
         for (const m of messages) {
             if (m.getType() === "tool") {
-                const toolMessage = m as ToolMessage;
+                const toolMessageObj = m as any;
                 // Skip if already summarized
-                if (alreadySummarized((toolMessage as any).content) || toolMessage.name === "context_summarize" || toolMessage.name === 'manage_todo_list') {
+                if (alreadySummarized((toolMessageObj as any).content) || toolMessageObj.name === "context_summarize" || toolMessageObj.name === 'manage_todo_list') {
                     rewritten.push(m);
                     continue;
                 }
-                const callId = (toolMessage as any).tool_call_id as string | undefined;
+                const callId = (toolMessageObj as any).tool_call_id as string | undefined;
                 const safeId = callId || `summarized_${nanoid(6)}`;
                 let hist = callId ? byCallId.get(callId) : undefined;
                 if (!hist) {
                     // Create a stub history entry if we don't have one (cross-invoke case)
                     hist = {
                         executionId: nanoid(),
-                        toolName: (toolMessage as any).name || "unknown_tool",
+                        toolName: (toolMessageObj as any).name || "unknown_tool",
                         args: null,
-                        output: typeof (toolMessage as any).content === "string" ? (toolMessage as any).content : (Array.isArray((toolMessage as any).content) ? (toolMessage as any).content.map((p: any) => (typeof p === "string" ? p : p?.text ?? p?.content ?? "")).join("") : String((toolMessage as any).content ?? "")),
+                        output: typeof (toolMessageObj as any).content === "string" ? (toolMessageObj as any).content : (Array.isArray((toolMessageObj as any).content) ? (toolMessageObj as any).content.map((p: any) => (typeof p === "string" ? p : p?.text ?? p?.content ?? "")).join("") : String((toolMessageObj as any).content ?? "")),
                         rawOutput: undefined,
                         timestamp: new Date().toISOString(),
                         summarized: true,
@@ -229,11 +234,12 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
                 if (!hist.executionId) hist.executionId = nanoid();
                 hist.summarized = true;
                 // Replace message content with summarized reference
-                rewritten.push(new ToolMessage({
+                rewritten.push({
+                    role: 'tool',
                     content: `SUMMARIZED executionId:'${hist.executionId}'`,
                     tool_call_id: safeId,
                     name: (toolMessage as any).name,
-                }));
+                });
                 continue;
             }
             rewritten.push(m);
@@ -242,22 +248,24 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
         // After rewriting, create a synthetic assistant "tool call" to represent summarization
         const summarizeCallId = `summarize_${nanoid(6)}`;
         const summarizeArgs = { reason: "Exceeded token limit: summarize prior tool outputs for context." };
-        const syntheticAssistant = new AIMessage({
+        const syntheticAssistant = {
+            role: 'assistant',
             content: "",
             additional_kwargs: {
                 tool_calls: [
                     { id: summarizeCallId, type: "function", function: { name: "context_summarize", arguments: JSON.stringify(summarizeArgs) } },
                 ],
             },
-        } as any);
+        } as any;
 
         // And its synthetic tool response containing the actual summary content
         const summaryExecId = nanoid();
-        const syntheticToolResp = new ToolMessage({
+        const syntheticToolResp = {
+            role: 'tool',
             content: `${summaryText}`,
             tool_call_id: summarizeCallId,
             name: "context_summarize",
-        });
+        } as any;
 
         // Return updated message list and move all current tool history items into archive
         // Mark all live items as summarized and merge with archived; de-duplicate by tool_call_id

@@ -1,5 +1,4 @@
-import { createSmartAgent } from "@cognipeer/smart-agent";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { createSmartAgent, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -17,16 +16,14 @@ const fakeModel = {
         turn++;
         if (turn === 1) {
             // Return a valid JSON as final message content
-            return new AIMessage({
-                content: JSON.stringify({ title: "Structured Output", bullets: ["a", "b", "c"] })
-            });
+            return { role: 'assistant', content: JSON.stringify({ title: "Structured Output", bullets: ["a", "b", "c"] }) };
         }
-        return new AIMessage({ content: "{}" });
+    return { role: 'assistant', content: "{}" };
     },
 };
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const model = apiKey ? new ChatOpenAI({ model: "gpt-4o-mini", apiKey }) : (fakeModel as any);
+const model = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakeModel as any);
 
 async function main() {
     const agent = createSmartAgent({
@@ -35,7 +32,7 @@ async function main() {
     systemPrompt: "Return only JSON for the final answer.",
     });
 
-    const res = await agent.invoke({ messages: [new HumanMessage("Generate 3 bullet points with a title")] });
+    const res = await agent.invoke({ messages: [{ role: 'user', content: "Generate 3 bullet points with a title" }] });
 
     if (res.output) {
         // Fully typed output

@@ -6,13 +6,12 @@ permalink: /architecture/
 
 # Architecture
 
-The agent is a LangGraph StateGraph composed of these nodes:
+The agent uses a lightweight iterative loop (previously a graph) with conceptual phases:
 
-- resolver: input checks and flow start
-- agent: model call (with tool binding)
-- tools: executes tool calls (observes parallel limits)
-- shouldContinue: decides next step after tools
-- toolLimitFinalize: finalization when tool limit is reached
-- contextSummarize: summarization when token limit would be exceeded
+- resolver: input checks / normalization
+- contextSummarize (conditional): token budget guard compacts prior tool output
+- agent: model call (tools bound if supported)
+- tools: executes emitted tool calls (enforces parallel + total limits)
+- toolLimitFinalize: injects a system notice when tool-cap reached; next agent turn produces final answer
 
-Summarization is triggered via `limits.maxToken` (default behavior). You can disable this by setting `summarization: false` in `createSmartAgent` options. Planning mode enables contextual tools (`manage_todo_list`, `get_tool_response`).
+Loop ends when agent produces an assistant message without tool calls or after finalization. Summarization triggers via `limits.maxToken` unless `summarization: false` is set. Planning mode enables contextual tools (`manage_todo_list`, `get_tool_response`).

@@ -1,4 +1,3 @@
-import { SystemMessage } from "@langchain/core/messages";
 import type { ToolInterface } from "@langchain/core/tools";
 import type { Message, SmartAgentOptions, SmartState } from "../types.js";
 import { buildSystemPrompt } from "../prompts.js";
@@ -35,13 +34,14 @@ export function createAgentNode(opts: SmartAgentOptions) {
         ].join("\n")
       : "";
 
-    const systemMsg = new SystemMessage(
-      buildSystemPrompt(
+    const systemMsg = {
+      role: 'system',
+      content: buildSystemPrompt(
         [runtime.systemPrompt, structuredOutputHint].filter(Boolean).join("\n"),
         runtime.useTodoList === true,
         runtime.name || "Agent"
       )
-    );
+    } as any;
     const messages = [systemMsg, ...state.messages];
 
     // Debug logging before/after model call

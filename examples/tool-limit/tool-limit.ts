@@ -1,5 +1,6 @@
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
+// Optional: only if you actually want to run against a real model instead of the fake one below.
+// import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
 const echo = createSmartTool({
@@ -14,29 +15,34 @@ const fakeModel = {
   bindTools() { return this; },
   async invoke(messages: any[]) {
     turn++;
-    const hasFinalize = messages.some((m: any) => m instanceof SystemMessage && typeof m.content === 'string' && m.content.includes('Tool-call limit reached'));
+    const hasFinalize = messages.some((m: any) => m.role === 'system' && typeof m.content === 'string' && m.content.includes('Tool-call limit reached'));
     if (hasFinalize) {
-      return new AIMessage({ content: "Final answer without further tools." });
+      return { role: 'assistant', content: "Final answer without further tools." };
     }
     if (turn === 1) {
-      return new AIMessage({
+      return {
+        role: 'assistant',
         content: "",
         tool_calls: [
-          { id: "c1", name: "echo", args: { text: "a" } },
-          { id: "c2", name: "echo", args: { text: "b" } },
-          { id: "c3", name: "echo", args: { text: "c" } },
+          { id: "c1", type: 'function', function: { name: "echo", arguments: JSON.stringify({ text: "a" }) } },
+          { id: "c2", type: 'function', function: { name: "echo", arguments: JSON.stringify({ text: "b" }) } },
+          { id: "c3", type: 'function', function: { name: "echo", arguments: JSON.stringify({ text: "c" }) } },
         ],
-      });
+      } as any;
     }
-    return new AIMessage({ content: "No finalize signal found." });
+    return { role: 'assistant', content: "No finalize signal found." };
   },
 };
 
+const apiKey = process.env.OPENAI_API_KEY;
+// If you want to try with a real model (requires installing @langchain/openai):
+// const realModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: 'gpt-4o-mini', apiKey })) : null;
+
 const agent = createSmartAgent({
-  model: fakeModel as any,
+  model: /* realModel || */ (fakeModel as any),
   tools: [echo],
   limits: { maxToolCalls: 2, maxParallelTools: 2 },
 });
 
-const res = await agent.invoke({ messages: [new HumanMessage("run tools until limit then finalize")] });
+const res = await agent.invoke({ messages: [{ role: 'user', content: "run tools until limit then finalize" }] });
 console.log("Final content:", res.content);

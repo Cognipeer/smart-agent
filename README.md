@@ -2,7 +2,7 @@
 
 [Docs Website (GitHub Pages)](https://cognipeer.github.io/smart-agent/)
 
-A LangGraph-based smart agent library that treats tool calls as messages, supports automatic context summarization, optional planning, and rich debug logs. The NPM package lives under `smart-agent/` (name: `@cognipeer/smart-agent`), and runnable examples are under `examples/`.
+Lightweight smart agent (no LangGraph dependency) that treats tool calls as messages, supports automatic context summarization, optional planning, and rich debug logs. The NPM package lives under `smart-agent/` (name: `@cognipeer/smart-agent`), and runnable examples are under `examples/`.
 
 - Package: `smart-agent/`
 - Examples: `examples/`
@@ -31,10 +31,10 @@ This README covers usage for consumers of the package and contributors working i
 - Rich debug logs: per-invoke Markdown with model, limits, usage, tools, and message timeline.
 
 ## Install
-Install the package and peer deps:
+Install the package and peer deps (LangGraph no longer required):
 
 ```sh
-npm install @cognipeer/smart-agent @langchain/core @langchain/langgraph
+npm install @cognipeer/smart-agent @langchain/core
 # Optional providers/helpers
 npm install @langchain/openai zod
 ```
@@ -108,15 +108,14 @@ OPENAI_API_KEY=... npx tsx examples/tools/tools.ts
 ```
 
 ## Architecture overview
-The agent is a LangGraph StateGraph composed of:
-- resolver: input gate and pre-checks
-- agent: the model call (with tools bound when available)
-- tools: executes tool calls (observes parallel limits)
-- shouldContinue: decides next edge after tools
-- toolLimitFinalize: finalizes when tool call limit is reached
-- contextSummarize: summarizes when token budget would be exceeded
+The agent runs an internal iterative loop (previously a LangGraph graph) with these conceptual phases:
+- resolver: input gate and normalization
+- optional contextSummarize phase when token budget would be exceeded
+- agent: model call (tools bound when supported)
+- tools: executes tool calls (enforces parallel + total limits)
+- toolLimitFinalize: injects a final system notice when tool-call cap hit (then a last agent turn)
 
-Planning mode adds `manage_todo_list`. The agent always adds `get_tool_response` to fetch archived/summarized tool outputs by executionId. Debug sessions write Markdown to `logs/` with timestamped directories.
+Loop exits when the agent produces an assistant message without tool calls or after finalization. Planning mode adds `manage_todo_list`. A helper tool `get_tool_response` lets prompts reference archived/summarized tool outputs by executionId. Debug sessions write Markdown to `logs/` with timestamped directories.
 
 More details: docs/architecture/README.md
 

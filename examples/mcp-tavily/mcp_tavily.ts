@@ -1,7 +1,6 @@
-import { createSmartAgent } from "@cognipeer/smart-agent";
+import { createSmartAgent, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
-import { HumanMessage } from "@langchain/core/messages";
 
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
@@ -28,7 +27,7 @@ const client = new MultiServerMCPClient({
 const tools = await client.getTools();
 console.log("Discovered MCP tools:", tools.map((t: any) => t.name));
 
-const model = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0, apiKey: OPENAI_API_KEY });
+const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0, apiKey: OPENAI_API_KEY }));
 
 const agent = createSmartAgent({
   model,
@@ -43,7 +42,7 @@ try {
     console.log("Skipping agent run because required API keys are missing.");
   } else {
     const res = await agent.invoke({
-      messages: [new HumanMessage("Use Tavily to find the latest LangChain MCP news and summarize in 3 bullets.")],
+  messages: [{ role: 'user', content: "Use Tavily to find the latest LangChain MCP news and summarize in 3 bullets." }],
     });
     console.log("Final content:\n", res.content);
   }

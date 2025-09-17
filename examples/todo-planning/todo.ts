@@ -1,5 +1,4 @@
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { HumanMessage } from "@langchain/core/messages";
+import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -11,7 +10,7 @@ const echo = createSmartTool({
 });
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const model = new ChatOpenAI({ model: "gpt-4o-mini", apiKey });
+const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
 
 const agent = createSmartAgent({
   model,
@@ -21,5 +20,5 @@ const agent = createSmartAgent({
   debug: { enabled: true }
 });
 
-const res = await agent.invoke({ messages: [new HumanMessage("Plan and execute: echo 'hi' then confirm done.")] });
+const res = await agent.invoke({ messages: [{ role: 'user', content: "Plan and execute: echo 'hi' then confirm done." }] });
 console.log(res.content);

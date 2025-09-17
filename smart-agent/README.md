@@ -1,6 +1,6 @@
 # @cognipeer/smart-agent
 
-Composable LangGraph-based smart agent with message-based tool turns, summarization, and built-in helpers. Ships ESM + CJS and works with LangChain tools (including MCP tools).
+Composable lightweight smart agent core (no LangGraph) with message-based tool turns, summarization, and built-in helpers. Ships ESM + CJS. LangChain is OPTIONAL via an adapter.
 
 - Message-first design: assistant tool_calls and tool responses live in `messages`.
 - Summarization pipeline to keep long histories under token budgets.
@@ -11,13 +11,17 @@ Composable LangGraph-based smart agent with message-based tool turns, summarizat
 ## Install
 
 ```sh
-npm install @cognipeer/smart-agent @langchain/core @langchain/langgraph
+npm install @cognipeer/smart-agent zod
 ```
 
-Optional: providers you plan to use, e.g. OpenAI
-
+If you want to use LangChain models/tools:
 ```sh
-npm install @langchain/openai zod tiktoken
+npm install @langchain/core @langchain/openai
+```
+
+If you want to use the official OpenAI SDK directly:
+```sh
+npm install openai
 ```
 
 ## Usage
@@ -25,9 +29,9 @@ npm install @langchain/openai zod tiktoken
 ### ESM
 
 ```ts
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage } from "@langchain/core/messages";
+import { createSmartAgent, createSmartTool, fromLangchainModel, fromOpenAIClient } from "@cognipeer/smart-agent";
+import { ChatOpenAI } from "@langchain/openai"; // optional dependency
+import OpenAI from "openai"; // optional official SDK
 import { z } from "zod";
 
 const echo = createSmartTool({
@@ -37,19 +41,26 @@ const echo = createSmartTool({
   func: async ({ text }) => ({ echoed: text }),
 });
 
-const model = new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY });
-const agent = createSmartAgent({ model, tools: [echo], limits: { maxToolCalls: 5 } });
+// Option A: LangChain model via adapter
+const lcModel = new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY });
+const modelA = fromLangchainModel(lcModel);
 
-const res = await agent.invoke({ messages: [new HumanMessage("say hi via echo")] });
+// Option B: Official OpenAI SDK client via adapter
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const modelB = fromOpenAIClient(client, { model: 'gpt-4o-mini', temperature: 0 });
+
+const agent = createSmartAgent({ model: modelB, tools: [echo], limits: { maxToolCalls: 5 } });
+
+const res = await agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] });
 console.log(res.content);
 ```
 
 ### CommonJS
 
 ```js
-const { createSmartAgent, createSmartTool } = require("@cognipeer/smart-agent");
-const { ChatOpenAI } = require("@langchain/openai");
-const { HumanMessage } = require("@langchain/core/messages");
+const { createSmartAgent, createSmartTool, fromLangchainModel, fromOpenAIClient } = require("@cognipeer/smart-agent");
+const { ChatOpenAI } = require("@langchain/openai"); // optional
+const OpenAI = require("openai"); // optional
 const z = require("zod");
 
 const echo = createSmartTool({
@@ -59,10 +70,13 @@ const echo = createSmartTool({
   func: async ({ text }) => ({ echoed: text }),
 });
 
-const model = new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY });
-const agent = createSmartAgent({ model, tools: [echo], limits: { maxToolCalls: 5 } });
+const lcModel = new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY });
+const modelA = fromLangchainModel(lcModel);
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const modelB = fromOpenAIClient(client, { model: 'gpt-4o-mini' });
+const agent = createSmartAgent({ model: modelB, tools: [echo], limits: { maxToolCalls: 5 } });
 
-agent.invoke({ messages: [new HumanMessage("say hi via echo")] }).then(r => console.log(r.content));
+agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] }).then(r => console.log(r.content));
 ```
 
 ## API
@@ -71,7 +85,7 @@ agent.invoke({ messages: [new HumanMessage("say hi via echo")] }).then(r => cons
 - withTools(model, tools)
 
 ### Options
-- model: LangChain LLM/ChatModel; if it supports tool calling, tools are bound automatically.
+- model: Any object implementing `invoke(messages[]) => assistantMessage`. Use helper `fromLangchainModel(model)` for LangChain.
 - tools?: ToolInterface[] (LangChain tools or MCP tools via adapters)
 - limits?: { maxToolCalls?, maxParallelTools?, maxToken?, contextTokenLimit?, summaryTokenLimit? }
 - systemPrompt?: { additionalSystemPrompt?, planning? }
@@ -120,3 +134,7 @@ const agent = createSmartAgent({
 
 ## License
 MIT
+
+---
+### Change Note
+LangChain is now an optional peer. Use `fromLangchainModel` to adapt a LangChain ChatModel. Core no longer depends on LangChain message classes.

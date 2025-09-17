@@ -1,5 +1,4 @@
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -24,9 +23,9 @@ const fakeSecondaryModel = {
     const last = messages[messages.length - 1];
     if (turnSecondary === 1) {
       // Call summarize tool
-      return new AIMessage({ content: "", tool_calls: [{ id: "sec_call_1", name: "summarize_text", args: { text: "Multi-agent systems coordinate specialists." } }] });
+  return { role: 'assistant', content: "", tool_calls: [{ id: "sec_call_1", type: 'function', function: { name: "summarize_text", arguments: JSON.stringify({ text: "Multi-agent systems coordinate specialists." }) } }] };
     }
-    return new AIMessage({ content: "Specialist answer ready" });
+  return { role: 'assistant', content: "Specialist answer ready" };
   }
 };
 
@@ -36,15 +35,15 @@ const fakePrimaryModel = {
     turnPrimary++;
     if (turnPrimary === 1) {
       // delegate to secondary agent via tool
-      return new AIMessage({ content: "", tool_calls: [{ id: "prim_call_1", name: "specialist_agent", args: { input: "Explain briefly the logic of a multi-agent system" } }] });
+  return { role: 'assistant', content: "", tool_calls: [{ id: "prim_call_1", type: 'function', function: { name: "specialist_agent", arguments: JSON.stringify({ input: "Explain briefly the logic of a multi-agent system" }) } }] };
     }
-    return new AIMessage({ content: "Completed" });
+  return { role: 'assistant', content: "Completed" };
   }
 };
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const secondaryModel = apiKey ? new ChatOpenAI({ model: "gpt-4o-mini", apiKey }) : (fakeSecondaryModel as any);
-const primaryModel = apiKey ? new ChatOpenAI({ model: "gpt-4o-mini", apiKey }) : (fakePrimaryModel as any);
+const secondaryModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakeSecondaryModel as any);
+const primaryModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakePrimaryModel as any);
 
 // Secondary (specialist) agent
 const specialist = createSmartAgent({
@@ -66,7 +65,7 @@ const primary = createSmartAgent({
 });
 
 async function run() {
-  const res = await primary.invoke({ messages: [new HumanMessage("What is a multi-agent system? Use the specialist agent.")] });
+  const res = await primary.invoke({ messages: [{ role: 'user', content: "What is a multi-agent system? Use the specialist agent." }] });
   console.log("Final content:", res.content);
 }
 

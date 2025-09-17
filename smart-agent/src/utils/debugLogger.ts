@@ -98,17 +98,18 @@ function formatMessages(messages: Message[]): string {
   const lines: string[] = [];
   const push = (s: string = "") => lines.push(s);
   for (const m of messages) {
-    if (m.getType() === 'system') {
+    const anyM: any = m as any;
+    const role = (anyM.role || (typeof (anyM.getType) === 'function' ? anyM.getType() : undefined)) as string | undefined;
+    if (role === 'system') {
       push("### System\n");
-      push(String(m.content));
+      push(String(anyM.content));
       push("");
-    } else if (m.getType() === "human") {
+    } else if (role === 'user' || role === 'human') {
       push("### User\n");
-      push(typeof m.content === "string" ? m.content : JSON.stringify(m.content, null, 2));
+      push(typeof anyM.content === "string" ? anyM.content : JSON.stringify(anyM.content, null, 2));
       push("");
-    } else if (m.getType() === "ai") {
+    } else if (role === 'assistant' || role === 'ai') {
       push("### AI\n");
-      const anyM: any = m as any;
       const toolCalls = Array.isArray(anyM.tool_calls) ? anyM.tool_calls : [];
       if (toolCalls.length) {
         push("Tool Calls:");
@@ -118,16 +119,15 @@ function formatMessages(messages: Message[]): string {
           push("```");
         }
       }
-      push(typeof m.content === "string" ? m.content : JSON.stringify(m.content, null, 2));
+      push(typeof anyM.content === "string" ? anyM.content : JSON.stringify(anyM.content, null, 2));
       push("");
-    } else if (m.getType() === "tool") {
+    } else if (role === 'tool') {
       push("### ToolResponse\n");
-      const anyT: any = m as any;
-      const hdr = { name: anyT.name, tool_call_id: anyT.tool_call_id, executionId: anyT.executionId };
+      const hdr = { name: anyM.name, tool_call_id: anyM.tool_call_id, executionId: anyM.executionId };
       push("```");
       push(JSON.stringify(hdr, null, 2));
       push("```");
-      push(typeof m.content === "string" ? m.content : JSON.stringify(m.content, null, 2));
+      push(typeof anyM.content === "string" ? anyM.content : JSON.stringify(anyM.content, null, 2));
       push("");
     }
   }

@@ -1,9 +1,34 @@
-import { AIMessage, BaseMessage } from "@langchain/core/messages";
-import { RunnableConfig } from "@langchain/core/runnables";
-import { ToolInterface } from "@langchain/core/tools";
+// LangChain specific types are removed from core; we define lightweight internal shapes.
+// If the user uses LangChain, they can still pass LC message objects; we treat them opaquely.
 import type { ZodSchema } from "zod";
 
-export type Message = BaseMessage;
+// Generic tool interface minimal contract (duck-typed). If user passes a LangChain Tool it will satisfy this.
+export interface ToolInterface<TInput = any, TOutput = any, TCallOptions = any> {
+  name: string;
+  description?: string;
+  // Either invoke(arg) or call(arg)
+  invoke?: (input: TInput, config?: TCallOptions) => Promise<TOutput> | TOutput;
+  call?: (input: TInput, config?: TCallOptions) => Promise<TOutput> | TOutput;
+  schema?: any; // optional JSON schema / zod inference
+  [key: string]: any;
+}
+
+export type RunnableConfig = { [key: string]: any };
+
+// Base message (internal) – we accept either string content or array parts.
+export type BaseMessage = {
+  role: string; // 'user' | 'assistant' | 'system' | 'tool' | etc.
+  name?: string;
+  content: any;
+  tool_calls?: any;
+  tool_call_id?: string;
+  [key: string]: any;
+};
+
+// AI message is any message with role=assistant; keep alias for usageConverter generics
+export type AIMessage = BaseMessage & { role: 'assistant' };
+
+export type Message = BaseMessage; // maintain alias used elsewhere
 
 export type SmartAgentLimits = {
   maxToolCalls?: number;
@@ -23,8 +48,8 @@ export type SmartAgentLimits = {
 export type SmartAgentOptions = {
   // Human-friendly agent name used in prompts and logging
   name?: string;
-  model: any; // a LangChain LLM or ChatModel with .bindTools
-  // Accept any LangChain tool implementation, including MCP dynamic tools with non-string schemas
+  model: any; // A BaseChatModel-like object with invoke(messages[]) => assistant message
+  // Accept any tool implementation matching minimal ToolInterface (LangChain Tool compatible)
   tools?: Array<ToolInterface<any, any, any>>;
   // Predefined handoff targets exposed as tools automatically
   handoffs?: HandoffDescriptor<any, any, any>[];
@@ -196,7 +221,7 @@ export type AgentInvokeResult<TOutput = unknown> = {
 export type SmartAgentInstance<TOutput = unknown> = {
   invoke: (input: SmartState, config?: InvokeConfig) => Promise<AgentInvokeResult<TOutput>>;
   // Convert this agent into a tool usable by another agent. Accepts optional overrides.
-  asTool: (opts: { toolName: string; description?: string; inputDescription?: string } ) => import("@langchain/core/tools").ToolInterface<any, any, any>;
+  asTool: (opts: { toolName: string; description?: string; inputDescription?: string } ) => ToolInterface<any, any, any>;
   // Create a handoff descriptor so another agent can switch control to this one mid-conversation
   asHandoff: (opts: { toolName?: string; description?: string; schema?: ZodSchema<any>; }) => HandoffDescriptor<any, any, TOutput>;
   __runtime: AgentRuntimeConfig;

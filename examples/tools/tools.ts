@@ -1,5 +1,4 @@
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -52,7 +51,7 @@ const tavilySearch = createSmartTool({
 });
 
 const apiKey = OPENAI_API_KEY;
-const model = new ChatOpenAI({ model: "gpt-4o-mini", apiKey });
+const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
 
 const agent = createSmartAgent({
     model,
@@ -63,7 +62,7 @@ const agent = createSmartAgent({
 });
 
 const res = await agent.invoke(
-    { messages: [new HumanMessage("Search latest news about LangChain MCP and summarize.")] },
+    { messages: [{ role: 'user', content: "Search latest news about LangChain MCP and summarize." }] },
     {
         onEvent: (e: any) => {
             if (e.type === "tool_call") console.log(`[tool] ${e.phase} ${e.name}`, e.id || "-");
