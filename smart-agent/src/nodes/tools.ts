@@ -104,6 +104,11 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           return;
         }
         const content = typeof output === "string" ? output : JSON.stringify(output);
+        if (output && typeof output === 'object' && output.__finalStructuredOutput) {
+          if (!state.ctx) state.ctx = {};
+          state.ctx.__structuredOutputParsed = output.data;
+          state.ctx.__finalizedDueToStructuredOutput = true;
+        }
         const executionId = nanoid();
         toolHistory.push({ executionId, toolName: (t as any).name, args, output, rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
         appended.push(new ToolMessage({ content, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));

@@ -18,7 +18,7 @@ const fakeModel = {
             // Return a valid JSON as final message content
             return { role: 'assistant', content: JSON.stringify({ title: "Structured Output", bullets: ["a", "b", "c"] }) };
         }
-    return { role: 'assistant', content: "{}" };
+        return { role: 'assistant', content: "{}" };
     },
 };
 
@@ -29,10 +29,10 @@ async function main() {
     const agent = createSmartAgent({
         model,
         outputSchema: ResultSchema,
-    systemPrompt: "Return only JSON for the final answer.",
+        systemPrompt: "Return only JSON for the final answer.",
     });
 
-    const res = await agent.invoke({ messages: [{ role: 'user', content: "Generate 3 bullet points with a title" }] });
+    const res = await agent.invoke({ messages: [{ role: 'user', content: "Generate 3 bullet points with a title about AI" }] });
 
     if (res.output) {
         // Fully typed output

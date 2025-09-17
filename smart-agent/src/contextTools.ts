@@ -5,7 +5,7 @@ import { z } from "zod";
 // Create context tools like get_tool_response, manage_todo_list
 export function createContextTools(
   stateRef: { toolHistory?: any[]; toolHistoryArchived?: any[]; todoList?: any[] },
-  opts?: { planningEnabled?: boolean }
+  opts?: { planningEnabled?: boolean; outputSchema?: any }
 ) {
   const tools = [] as any[];
 
@@ -71,6 +71,30 @@ export function createContextTools(
   // mark mutable stateRef for toolsNode sync
   (getTool as any)._stateRef = stateRef;
   tools.push(getTool);
+
+  // Structured output finalize tool (response) if outputSchema provided
+  if (opts?.outputSchema) {
+    const responseTool = tool(
+      async (data: any) => {
+        // Validate directly against provided schema
+        try {
+          const validated = opts.outputSchema.parse ? opts.outputSchema.parse(data) : data;
+          // store parsed in a sentinel for toolsNode to pick up (toolsNode already looks for __finalStructuredOutput?)
+          return { __finalStructuredOutput: true, data: validated };
+        } catch (e: any) {
+          return { error: 'Schema validation failed', details: e?.message };
+        }
+      },
+      {
+        name: 'response',
+        description: 'Finalize the answer by returning the final structured JSON matching the required schema. Call exactly once when you are fully done, then stop.',
+        // Use schema directly; if not Zod, fall back to any-object
+        schema: opts.outputSchema.shape ? opts.outputSchema : z.any(),
+      }
+    );
+    (responseTool as any)._stateRef = stateRef;
+    tools.push(responseTool);
+  }
 
   return tools;
 }

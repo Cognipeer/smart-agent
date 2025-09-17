@@ -29,10 +29,12 @@ export function createAgentNode(opts: SmartAgentOptions) {
     // 3) Prepend a single, fresh system prompt for this turn only
     const structuredOutputHint = runtime.outputSchema
       ? [
-          "When you provide the FINAL assistant message, output ONLY a valid JSON value matching the required output schema.",
-          "Do not wrap it in code fences. Do not add any prose before or after. Return pure JSON only.",
-        ].join("\n")
-      : "";
+          'A structured output schema is active.',
+          'Do NOT output the final JSON directly as an assistant message.',
+          'When completely finished, call tool `response` passing the final JSON matching the schema as its arguments (direct object).',
+          'Call it exactly once then STOP producing further assistant messages.'
+        ].join('\n')
+      : '';
 
     const systemMsg = {
       role: 'system',

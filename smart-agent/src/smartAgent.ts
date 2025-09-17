@@ -25,7 +25,7 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
     const resolver = createResolverNode();
     const stateRef: any = { toolHistory: undefined, toolHistoryArchived: undefined, todoList: undefined };
     const planningEnabled = opts.useTodoList === true;
-    const contextTools = createContextTools(stateRef, { planningEnabled });
+    const contextTools = createContextTools(stateRef, { planningEnabled, outputSchema: opts.outputSchema });
     const mergedToolsBase = [...((opts.tools as any) ?? []), ...contextTools];
     const agentNode = createAgentNode({ ...opts, tools: mergedToolsBase });
     const toolsNode = createToolsNode(mergedToolsBase, opts);
@@ -90,6 +90,9 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
 
             // Run tools
             state = { ...state, ...(await toolsNode(state)) } as SmartState;
+            if (state.ctx?.__finalizedDueToStructuredOutput) {
+                break;
+            }
             lastAction = 'tools';
 
             // Post-tools decision: summarization vs agent vs finalize
@@ -157,17 +160,18 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
             else if (Array.isArray(finalMsg?.content)) {
                 content = finalMsg.content.map((c: any) => (typeof c === "string" ? c : c?.text ?? c?.content ?? "")).join("");
             }
-            // If an output schema is provided, try to parse structured output
+            // Structured output preference: if finalize tool used, pick parsed result from ctx
             let parsed: TOutput | undefined = undefined;
             const schema = opts.outputSchema as ZodSchema<TOutput> | undefined;
-            if (schema && content) {
-                // Heuristic: try to locate a JSON block in content, else attempt direct parse
+            if (schema && (res as any).ctx?.__structuredOutputParsed) {
+                parsed = (res as any).ctx.__structuredOutputParsed as TOutput;
+            } else if (schema && content) {
+                // Fallback legacy heuristic (no finalize tool path taken)
                 let jsonText: string | null = null;
                 const fenced = content.match(/```(?:json)?\n([\s\S]*?)```/i);
                 if (fenced && fenced[1]) {
                     jsonText = fenced[1].trim();
                 } else {
-                    // try to extract first {...} or [...] block
                     const braceIdx = content.indexOf("{");
                     const bracketIdx = content.indexOf("[");
                     const start = [braceIdx, bracketIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
@@ -177,9 +181,7 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
                     const raw = JSON.parse(jsonText ?? content);
                     const resParsed = schema.parse(raw);
                     parsed = resParsed as TOutput;
-                } catch {
-                    // ignore parse errors; user can inspect content
-                }
+                } catch { /* ignore parse errors */ }
             }
 
             // Default usage converter attempts OpenAI-style usage on message or model
