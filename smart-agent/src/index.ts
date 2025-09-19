@@ -12,5 +12,4 @@ export * from "./utils/tokenManager.js";
 export * from "./utils/utilTokens.js";
 export * from "./contextTools.js";
 export * from "./utils/debugLogger.js";
-export * from "./adapters/openai.js";
 export type { SmartAgentOptions, SmartAgentLimits, SmartState, InvokeConfig, AgentInvokeResult, SmartAgentInstance } from "./types.js";
