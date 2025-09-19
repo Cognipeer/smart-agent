@@ -6,7 +6,7 @@ permalink: /getting-started/
 
 # Getting Started
 
-This guide helps you install, configure, and run your first Smart Agent.
+This guide helps you install, configure, and run your first agent. The base is a minimal createAgent; a SmartAgent layer is available for planning + summarization.
 
 ## Prerequisites
 
@@ -14,9 +14,9 @@ This guide helps you install, configure, and run your first Smart Agent.
 - A supported model provider API key (e.g. `OPENAI_API_KEY`) OR you can start with a fake model for offline experimentation.
 - Package manager: npm, pnpm, or yarn (examples assume npm).
 
-## Why Smart Agent?
+## Why this agent?
 
-You get: structured output, safe tool limits, optional planning/TODO mode, summarization of oversized context, multi-agent composition, and clear logging – all with a small surface area.
+You get: structured output, safe tool limits, optional planning/TODO mode (via SmartAgent), summarization of oversized context (SmartAgent), multi-agent composition, and clear logging – all with a small surface area.
 
 ## Install
 ```sh
@@ -35,24 +35,23 @@ export OPENAI_API_KEY=sk-...
 ```
 Add this to your shell profile for persistence (`~/.zshrc` or similar).
 
-## Your first agent
+## Your first agent (base)
 ```ts
-import { createSmartAgent, createSmartTool } from "@cognipeer/smart-agent";
+import { createAgent, createTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage } from "@langchain/core/messages";
 import { z } from "zod";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back",
   schema: z.object({ text: z.string().min(1) }),
   func: async ({ text }) => ({ echoed: text }),
 });
 
-const model = new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY });
-const agent = createSmartAgent({ model, tools: [echo], limits: { maxToolCalls: 5 } });
+const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY }));
+const agent = createAgent({ model, tools: [echo], limits: { maxToolCalls: 5 } });
 
-const res = await agent.invoke({ messages: [new HumanMessage("say hi via echo")] });
+const res = await agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] });
 console.log(res.content);
 ```
 
@@ -65,36 +64,37 @@ console.log(res.content);
 If you have no key yet, build a trivial fake model:
 ```ts
 const fakeModel = { bindTools() { return this; }, async invoke(messages:any[]) { return { role:'assistant', content:'hello (fake)' }; } };
-const agent = createSmartAgent({ model: fakeModel as any });
+const agent = createAgent({ model: fakeModel as any });
 ```
 
-## Adding Structured Output
-Provide `outputSchema` to validate & parse the final message:
+## Adding Structured Output (base)
+Provide `outputSchema` to validate & parse the final message. The base agent will expose `res.output` when parsing succeeds, and also offers a built-in finalize tool the model can call (`response`).
 ```ts
 const Result = z.object({ title: z.string(), bullets: z.array(z.string()).min(1) });
-const agent = createSmartAgent({ model, outputSchema: Result });
+const agent = createAgent({ model, outputSchema: Result });
 const res = await agent.invoke({ messages: [{ role:'user', content:'Give 3 bullets about agents' }] });
 if (res.output) console.log(res.output.bullets);
 ```
 
-## Enabling Planning / TODO Mode
-Turn on an internal TODO list and planning prompt rules:
+## Smart layer: Planning / TODO and Summarization
+If you prefer built-in planning (TODO list) and token-aware summarization, use the SmartAgent wrapper:
 ```ts
-const agent = createSmartAgent({ model, useTodoList: true, tools: [echo] });
+import { createSmartAgent } from "@cognipeer/smart-agent";
+const smart = createSmartAgent({ model, useTodoList: true, tools: [echo] });
 ```
 Listen for plan events:
 ```ts
-await agent.invoke({ messages:[{ role:'user', content:'Plan and echo hi' }] }, { onEvent: e => { if(e.type==='plan') console.log('Plan size', e.todoList?.length); } });
+await smart.invoke({ messages:[{ role:'user', content:'Plan and echo hi' }] }, { onEvent: e => { if(e.type==='plan') console.log('Plan size', e.todoList?.length); } });
 ```
 
 ## Handling Tool Limits
 Set caps to prevent runaway loops:
 ```ts
-createSmartAgent({ model, tools:[echo], limits: { maxToolCalls: 3, maxParallelTools: 2 } });
+createAgent({ model, tools:[echo], limits: { maxToolCalls: 3, maxParallelTools: 2 } });
 ```
 When the limit is hit, a system finalize message is injected and the next model turn must answer directly.
 
-## Context Summarization
+## Context Summarization (SmartAgent)
 Activate via `limits.maxToken` and adjust summarization targets:
 ```ts
 limits: { maxToolCalls: 8, maxToken: 6000, contextTokenLimit: 4000, summaryTokenLimit: 600 }

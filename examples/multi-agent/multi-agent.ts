@@ -1,9 +1,9 @@
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
+import { createAgent, createTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
 // Simple helper tool for secondary agent
-const summarize = createSmartTool({
+const summarize = createTool({
   name: "summarize_text",
   description: "Summarize given text briefly",
   schema: z.object({ text: z.string().min(1) }),
@@ -46,7 +46,7 @@ const secondaryModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-
 const primaryModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakePrimaryModel as any);
 
 // Secondary (specialist) agent
-const specialist = createSmartAgent({
+const specialist = createAgent({
   name: "Specialist",
   model: secondaryModel,
   tools: [summarize],
@@ -57,7 +57,7 @@ const specialist = createSmartAgent({
 const specialistTool = specialist.asTool({ toolName: "specialist_agent", description: "Delegate complex sub-question to specialist agent" });
 
 // Primary agent uses specialist tool
-const primary = createSmartAgent({
+const primary = createAgent({
   name: "Primary",
   model: primaryModel,
   tools: [specialistTool],

@@ -6,16 +6,16 @@ nav_order: 1
 
 # Smart Agent
 
-Lightweight agent loop with planning, tool limits, structured output, context summarization, multi-agent delegation, and MCP integration.
+Lightweight agent loop with tool limits and structured output (createAgent). A SmartAgent layer adds planning (TODO) and context summarization.
 
 ## Key Capabilities
 
-- Planning mode & TODO list: let the agent build and evolve an internal action plan.
+- Planning mode & TODO list (SmartAgent): let the agent build and evolve an internal action plan.
 - Structured output: enforce and parse final JSON results using a Zod schema.
 - Multi-agent composition: turn any agent into a tool for another agent.
 - Handoffs: explicitly transfer control to a specialized agent mid-conversation.
 - Tool limits: total + parallel call caps with automatic finalize message injection.
-- Context & token management: summarize and archive large tool outputs when thresholds are exceeded.
+- Context & token management (SmartAgent): summarize and archive large tool outputs when thresholds are exceeded.
 - MCP tools: dynamically discover and use remote MCP-hosted tools.
 - Logging & observability: per-invoke Markdown logs and event streaming hooks.
 - Flexible model layer: works with LangChain ChatModels or custom/fake models for offline tests.

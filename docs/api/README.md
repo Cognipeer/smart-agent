@@ -7,18 +7,19 @@ permalink: /api/
 # API
 
 Exports:
+- createAgent(options)
 - createSmartAgent(options)
-- createSmartTool({ name, description?, schema, func })
-- withTools(model, tools)
+- createTool({ name, description?, schema, func })
+- fromLangchainModel(model)
 - buildSystemPrompt(params?)
 - nodes/*, utils/*, contextTools
 - Types: SmartAgentOptions, SmartAgentLimits, SmartState, InvokeConfig, AgentInvokeResult
 
-## SmartAgentOptions
+## AgentOptions / SmartAgentOptions
 - model: LangChain LLM/ChatModel
 - tools?: ToolInterface[]
 - limits?: { maxToolCalls?, maxParallelTools?, maxToken?, contextTokenLimit?, summaryTokenLimit? }
-- systemPrompt?: { additionalSystemPrompt?, planning? }
+- systemPrompt?: string (SmartAgent adds a composed prompt; base agent ignores this)
 - useTodoList?: boolean
 - summarization?: boolean (default true) – disable to turn off token-aware context summarization
 - usageConverter?: (finalMessage, fullState, model) => any
@@ -26,4 +27,4 @@ Exports:
 - onEvent?: (event) => void
 
 ## Return type
-invoke -> { content: string, metadata: { usage? }, messages: Message[] }
+invoke -> { content: string, output?: T, metadata: { usage? }, messages: Message[], state? }

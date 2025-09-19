@@ -217,7 +217,7 @@ export type AgentInvokeResult<TOutput = unknown> = {
   state?: SmartState;
 };
 
-// Public shape returned by createSmartAgent
+// Public shape returned by the agent factory
 export type SmartAgentInstance<TOutput = unknown> = {
   invoke: (input: SmartState, config?: InvokeConfig) => Promise<AgentInvokeResult<TOutput>>;
   // Convert this agent into a tool usable by another agent. Accepts optional overrides.
@@ -226,3 +226,11 @@ export type SmartAgentInstance<TOutput = unknown> = {
   asHandoff: (opts: { toolName?: string; description?: string; schema?: ZodSchema<any>; }) => HandoffDescriptor<any, any, TOutput>;
   __runtime: AgentRuntimeConfig;
 };
+
+// --- Generic aliases for migration to agent-sdk naming ---
+export type AgentLimits = SmartAgentLimits;
+export type AgentOptions = SmartAgentOptions;
+export type AgentState = SmartState;
+export type AgentEvent = SmartAgentEvent;
+export type AgentResult<T = unknown> = AgentInvokeResult<T>;
+export type AgentInstance<T = unknown> = SmartAgentInstance<T>;

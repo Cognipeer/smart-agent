@@ -1,6 +1,6 @@
 import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
 // Optional: only if you actually want to run against a real model instead of the fake one below.
-// import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
 const echo = createSmartTool({
@@ -36,10 +36,10 @@ const fakeModel = {
 
 const apiKey = process.env.OPENAI_API_KEY;
 // If you want to try with a real model (requires installing @langchain/openai):
-// const realModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: 'gpt-4o-mini', apiKey })) : null;
+const realModel = apiKey ? fromLangchainModel(new ChatOpenAI({ model: 'gpt-4o-mini', apiKey })) : null;
 
 const agent = createSmartAgent({
-  model: /* realModel || */ (fakeModel as any),
+  model: realModel || (fakeModel as any),
   tools: [echo],
   limits: { maxToolCalls: 2, maxParallelTools: 2 },
 });

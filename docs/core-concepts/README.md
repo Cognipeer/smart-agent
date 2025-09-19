@@ -26,7 +26,7 @@ Each node is a pure-ish async function taking and returning a partial state diff
 - toolLimitFinalize – inject finalize system message
 
 ## 3. Tools
-Created via `createSmartTool({ name, schema, func })`. Schema is Zod; return value is serialized to a tool message. Tools should:
+Created via `createTool({ name, schema, func })`. Schema is Zod; return value is serialized to a tool message. Tools should:
 - Validate inputs strictly
 - Fail fast (throw) on unrecoverable issues
 - Return small, meaningful objects (the framework can summarize large blobs later)
@@ -37,7 +37,7 @@ When enabled:
 - `get_tool_response` – Retrieve raw archived tool output by `executionId`
 
 ## 5. Structured Output
-Provide `outputSchema`. The final assistant message is parsed. If JSON fenced code block present it is also attempted. Parsed result -> `res.output`.
+Provide `outputSchema`. The final assistant message is parsed into `res.output`. The base agent also adds a `response` finalize tool behind the scenes; when the model calls it with the JSON object, parsing becomes deterministic.
 
 ## 6. Multi-Agent Composition
 - `agent.asTool()` wraps an agent to answer a sub-question

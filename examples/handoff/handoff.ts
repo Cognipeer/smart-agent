@@ -1,20 +1,20 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { fromLangchainModel } from "@cognipeer/smart-agent";
 import { z } from "zod";
-import { createSmartAgent } from "@cognipeer/smart-agent";
+import { createAgent } from "@cognipeer/smart-agent";
 
 async function main() {
   // Base model (replace with env OPENAI_API_KEY configured)
   const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini" }));
 
-  const financeAgent = createSmartAgent({
+  const financeAgent = createAgent({
     name: "Finance",
     model,
     tools: [],
     systemPrompt: "You are an expert financial analyst."
   });
 
-  const codingAgent = createSmartAgent({
+  const codingAgent = createAgent({
     name: "Coder",
     model,
     tools: [],
@@ -22,7 +22,7 @@ async function main() {
   });
 
   // Root agent can hand off to codingAgent when code implementation is required.
-  const rootAgent = createSmartAgent({
+  const rootAgent = createAgent({
     name: "Root",
     model,
     tools: [],

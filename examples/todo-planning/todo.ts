@@ -10,7 +10,16 @@ const echo = createSmartTool({
 });
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
+const fallbackModel = {
+  bindTools() { return this; },
+  async invoke(_messages: any[]) {
+    // Ask to call echo tool once, then respond.
+    return { role: 'assistant', content: "", tool_calls: [{ id: "call_1", type: 'function', function: { name: "echo", arguments: JSON.stringify({ text: "hi" }) } }] } as any;
+  },
+};
+const model = apiKey
+  ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }))
+  : (fallbackModel as any);
 
 const agent = createSmartAgent({
   model,

@@ -1,6 +1,6 @@
 # Structured Output Example
 
-This example shows how to use `outputSchema` with `createSmartAgent` to get typed, Zod-validated results from the agent.
+This example shows how to use `outputSchema` with `createAgent` to get typed, Zod-validated results from the agent.
 
 ## What it does
 - Defines a Zod schema for the expected final answer

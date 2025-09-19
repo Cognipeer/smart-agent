@@ -1,9 +1,9 @@
 // ESM basic example
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "../smart-agent/dist/index.js";
+import { createAgent, createTool, fromLangchainModel } from "../smart-agent/dist/index.js";
 import { ChatOpenAI } from "@langchain/openai";
 import z from "zod";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back",
   schema: z.object({ text: z.string().min(1) }),
@@ -25,6 +25,6 @@ const fakeModel = {
 const apiKey = process.env.OPENAI_API_KEY;
 const model = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : fakeModel;
 
-const agent = createSmartAgent({ model, tools: [echo], limits: { maxToolCalls: 3 } });
+const agent = createAgent({ model, tools: [echo], limits: { maxToolCalls: 3 } });
 const res = await agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] });
 console.log("Final:", res.messages.at(-1));

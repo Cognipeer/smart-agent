@@ -22,3 +22,18 @@ export function createSmartTool({
         schema
     })
 }
+
+// Alias for future agent-sdk naming; mirrors createSmartTool
+export function createTool({
+    name,
+    description,
+    schema,
+    func,
+}: {
+    name: string;
+    description?: string;
+    schema: ZodSchema;
+    func: SmartToolFn;
+}): ToolInterface {
+    return createSmartTool({ name, description, schema, func });
+}

@@ -1,4 +1,4 @@
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
+import { createAgent, createTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -13,14 +13,14 @@ if (!TAVILY_API_KEY) {
     console.warn("[warn] TAVILY_API_KEY not set. The tavily_search tool will fail if the agent tries to use it.");
 }
 
-const echo = createSmartTool({
+const echo = createTool({
     name: "echo",
     description: "Echo back",
     schema: z.object({ text: z.string().min(1) }),
     func: async ({ text }) => ({ echoed: text }),
 });
 
-const tavilySearch = createSmartTool({
+const tavilySearch = createTool({
     name: "tavily_search",
     description: "Perform a web search via Tavily API and return top results.",
     schema: z.object({
@@ -53,11 +53,10 @@ const tavilySearch = createSmartTool({
 const apiKey = OPENAI_API_KEY;
 const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
 
-const agent = createSmartAgent({
+const agent = createAgent({
     model,
     tools: [echo, ...(TAVILY_API_KEY ? [tavilySearch] : [])],
-    useTodoList: true,
-    limits: { maxToolCalls: 10, maxToken: 8000 },
+    limits: { maxToolCalls: 10 },
     debug: { enabled: true },
 });
 

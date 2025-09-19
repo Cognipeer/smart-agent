@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 
@@ -10,7 +10,15 @@ const echo = createSmartTool({
 });
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
+const fallbackModel = {
+  bindTools() { return this; },
+  async invoke(_messages: any[]) {
+    return { role: "assistant", content: "(fake) summarized conversation" } as any;
+  },
+};
+const model = apiKey
+  ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }))
+  : (fallbackModel as any);
 
 const agent = createSmartAgent({
   model,

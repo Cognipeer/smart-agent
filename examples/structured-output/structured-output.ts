@@ -1,4 +1,4 @@
-import { createSmartAgent, fromLangchainModel } from "@cognipeer/smart-agent";
+import { createAgent, fromLangchainModel } from "@cognipeer/smart-agent";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -26,10 +26,9 @@ const apiKey = process.env.OPENAI_API_KEY || "";
 const model = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakeModel as any);
 
 async function main() {
-    const agent = createSmartAgent({
+    const agent = createAgent({
         model,
         outputSchema: ResultSchema,
-        systemPrompt: "Return only JSON for the final answer.",
     });
 
     const res = await agent.invoke({ messages: [{ role: 'user', content: "Generate 3 bullet points with a title about AI" }] });
